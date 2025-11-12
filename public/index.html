@@ -1,111 +1,189 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Goon VoiceFlow</title>
   <style>
-    body { font-family: 'Segoe UI', sans-serif; background: #0d0d0d; color: #eee; margin: 0; padding: 20px; }
-    #chat { height: 70vh; overflow-y: auto; background: #1a1a1a; padding: 15px; border-radius: 12px; margin-bottom: 10px; }
-    .msg { margin: 8px 0; padding: 10px; border-radius: 10px; max-width: 80%; }
-    .user { background: #0044cc; align-self: flex-end; margin-left: auto; }
-    .bot { background: #333; }
-    #input-area { display: flex; gap: 8px; }
-    #input { flex: 1; padding: 12px; border: 1px solid #444; border-radius: 8px; background: #222; color: #eee; }
-    button { padding: 12px 16px; border: none; border-radius: 8px; background: #397DFF; color: white; cursor: pointer; }
-    button:hover { background: #285ab8; }
-    #mic { background: #e91e63; }
-    #mic.recording { background: #c2185b; }
-    .status { font-size: 0.8em; color: #888; text-align: center; margin-top: 5px; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #app {
+      width: 90%;
+      max-width: 800px;
+      height: 90vh;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+    }
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .message {
+      margin-bottom: 15px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      max-width: 80%;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+    .user {
+      background: #667eea;
+      color: white;
+      margin-left: auto;
+      text-align: right;
+    }
+    .assistant {
+      background: white;
+      color: #333;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .system {
+      background: #ffeaa7;
+      color: #333;
+      text-align: center;
+      margin: 0 auto;
+      font-style: italic;
+    }
+    #input-area {
+      padding: 20px;
+      background: white;
+      border-top: 1px solid #e0e0e0;
+      display: flex;
+      gap: 10px;
+    }
+    #input {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 25px;
+      font-size: 16px;
+      outline: none;
+      transition: border-color 0.3s;
+    }
+    #input:focus {
+      border-color: #667eea;
+    }
+    button {
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 25px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    button:hover {
+      transform: scale(1.05);
+    }
+    button:active {
+      transform: scale(0.95);
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
-  <h1>Pablo AI</h1>
-  <div id="chat"></div>
-  <div id="input-area">
-    <input id="input" placeholder="Type or speak...">
-    <button id="mic">Microphone</button>
-    <button id="send">Send</button>
+  <div id="app">
+    <div id="header">Goon VoiceFlow</div>
+    <div id="messages"></div>
+    <div id="input-area">
+      <input type="text" id="input" placeholder="Type your message..." />
+      <button id="send">Send</button>
+    </div>
   </div>
-  <div class="status" id="status"></div>
 
   <script>
-    // Generate or retrieve persistent session ID from localStorage
-    let sessionId = localStorage.getItem('goon_session_id');
-    if (!sessionId) {
-      sessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-        const r = Math.random() * 16 | 0;
-        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-      });
-      localStorage.setItem('goon_session_id', sessionId);
-    }
+    let ws;
+    let sessionId = localStorage.getItem('sessionId');
+    const messagesDiv = document.getElementById('messages');
+    const input = document.getElementById('input');
+    const sendBtn = document.getElementById('send');
 
-    const ws = new WebSocket(`ws://${location.host}`);
-    const chat   = document.getElementById('chat');
-    const input  = document.getElementById('input');
-    const mic    = document.getElementById('mic');
-    const status = document.getElementById('status');
-    let recorder, audioChunks = [];
-    let sessionInitialized = false;
-
-    ws.onopen = () => {
-      // Send session ID on connection
-      ws.send(JSON.stringify({ type: 'init', sessionId: sessionId }));
-    };
-
-    ws.onmessage = (e) => {
-      const msg = JSON.parse(e.data);
-      if (msg.type === 'sessionId') {
-        sessionInitialized = true;
-        console.log('Session initialized:', msg.sessionId);
-      } else if (msg.type === 'text') {
-        addMessage(msg.content, 'bot');
-      } else if (msg.type === 'audio') {
-        const audio = new Audio('data:audio/mp3;base64,' + msg.buffer);
-        audio.play();
-      }
-    };
-
-    function addMessage(text, sender) {
+    function addMessage(content, type) {
       const div = document.createElement('div');
-      div.className = `msg ${sender}`;
-      div.textContent = text;
-      chat.appendChild(div);
-      chat.scrollTop = chat.scrollHeight;
+      div.className = 'message ' + type;
+      div.textContent = content;
+      messagesDiv.appendChild(div);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
-    document.getElementById('send').onclick = () => {
+    function connect() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(protocol + '//' + window.location.host);
+
+      ws.onopen = () => {
+        console.log('Connected');
+        ws.send(JSON.stringify({ type: 'init', sessionId }));
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'sessionId') {
+          sessionId = data.sessionId;
+          localStorage.setItem('sessionId', sessionId);
+          console.log('Session ID:', sessionId);
+        } else if (data.type === 'text') {
+          addMessage(data.content, 'assistant');
+        } else if (data.type === 'error') {
+          addMessage(data.content, 'system');
+        } else if (data.type === 'audio') {
+          // Handle audio playback
+          const audio = new Audio('data:audio/mpeg;base64,' + data.buffer);
+          audio.play().catch(err => console.error('Audio playback failed:', err));
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('Disconnected');
+        addMessage('Connection lost. Reconnecting...', 'system');
+        setTimeout(connect, 3000);
+      };
+
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+      };
+    }
+
+    function sendMessage() {
       const text = input.value.trim();
-      if (text) {
-        ws.send(JSON.stringify({ type: 'text', content: text }));
-        addMessage(text, 'user');
-        input.value = '';
-      }
-    };
+      if (!text) return;
 
-    mic.onclick = async () => {
-      if (!recorder) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        recorder = new MediaRecorder(stream);
-        audioChunks = [];
-        recorder.ondataavailable = e => audioChunks.push(e.data);
-        recorder.onstop = () => {
-          const blob = new Blob(audioChunks, { type: 'audio/wav' });
-          blob.arrayBuffer().then(buf => {
-            ws.send(JSON.stringify({ type: 'audio', buffer: Buffer.from(buf).toString('base64') }));
-          });
-          mic.classList.remove('recording');
-          status.textContent = '';
-        };
-        recorder.start();
-        mic.classList.add('recording');
-        status.textContent = 'Recording...';
-      } else {
-        recorder.stop();
-        recorder = null;
-      }
-    };
+      addMessage(text, 'user');
+      ws.send(JSON.stringify({ type: 'text', content: text }));
+      input.value = '';
+    }
 
-    input.addEventListener('keypress', e => e.key === 'Enter' && document.getElementById('send').click());
+    sendBtn.addEventListener('click', sendMessage);
+    input.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    connect();
   </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: '/opt/goon-voiceflow/.env' });
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -17,8 +17,12 @@ const crypto = require('crypto');
 class Logger {
   constructor() {
     this.logsDir = path.join(__dirname, 'logs');
-    if (!fs.existsSync(this.logsDir)) {
-      fs.mkdirSync(this.logsDir, { recursive: true });
+    try {
+      if (!fs.existsSync(this.logsDir)) {
+        fs.mkdirSync(this.logsDir, { recursive: true });
+      }
+    } catch (err) {
+      console.warn('Could not create logs directory:', err.message);
     }
     this.appLogPath = path.join(this.logsDir, 'app.log');
     this.errorLogPath = path.join(this.logsDir, 'error.log');
@@ -33,12 +37,20 @@ class Logger {
     };
     const logLine = JSON.stringify(logEntry) + '\n';
 
-    // Write to app.log
-    fs.appendFileSync(this.appLogPath, logLine);
+    // Write to app.log (with error handling)
+    try {
+      fs.appendFileSync(this.appLogPath, logLine);
+    } catch (err) {
+      // Silently fail if can't write logs
+    }
 
-    // Write to error.log if error or warn
+    // Write to error.log if error or warn (with error handling)
     if (level === 'error' || level === 'warn') {
-      fs.appendFileSync(this.errorLogPath, logLine);
+      try {
+        fs.appendFileSync(this.errorLogPath, logLine);
+      } catch (err) {
+        // Silently fail if can't write error logs
+      }
     }
 
     // Console output
@@ -1175,8 +1187,12 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
 // WEB UI GENERATION
 // ============================================================================
 const publicDir = path.join(__dirname, 'public');
-if (!fs.existsSync(publicDir)) {
-  fs.mkdirSync(publicDir, { recursive: true });
+try {
+  if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true });
+  }
+} catch (err) {
+  logger.warn('Could not create public directory', { error: err.message });
 }
 
 const htmlContent = `<!DOCTYPE html>
@@ -1369,8 +1385,12 @@ const htmlContent = `<!DOCTYPE html>
 </body>
 </html>`;
 
-fs.writeFileSync(path.join(publicDir, 'index.html'), htmlContent);
-logger.info('WebUI HTML generated');
+try {
+  fs.writeFileSync(path.join(publicDir, 'index.html'), htmlContent);
+  logger.info('WebUI HTML generated');
+} catch (err) {
+  logger.warn('Could not write WebUI HTML', { error: err.message });
+}
 
 // ============================================================================
 // SESSION CLEANUP
