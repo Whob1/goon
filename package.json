@@ -1,0 +1,26 @@
+{
+  "name": "goon-voiceflow-full",
+  "version": "1.2.0",
+  "description": "Production-ready VoiceFlow agent with OpenRouter + Mistral + systemd",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ioredis": "^5.8.2",
+    "redis": "^4.6.15",
+    "simple-git": "^3.25.0",
+    "telegraf": "^4.16.3",
+    "uuid": "^9.0.1",
+    "ws": "^8.17.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4",
+    "typescript": "^5.9.3"
+  }
+}

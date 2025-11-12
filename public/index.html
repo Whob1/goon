@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Goon VoiceFlow</title>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #0d0d0d; color: #eee; margin: 0; padding: 20px; }
+    #chat { height: 70vh; overflow-y: auto; background: #1a1a1a; padding: 15px; border-radius: 12px; margin-bottom: 10px; }
+    .msg { margin: 8px 0; padding: 10px; border-radius: 10px; max-width: 80%; }
+    .user { background: #0044cc; align-self: flex-end; margin-left: auto; }
+    .bot { background: #333; }
+    #input-area { display: flex; gap: 8px; }
+    #input { flex: 1; padding: 12px; border: 1px solid #444; border-radius: 8px; background: #222; color: #eee; }
+    button { padding: 12px 16px; border: none; border-radius: 8px; background: #397DFF; color: white; cursor: pointer; }
+    button:hover { background: #285ab8; }
+    #mic { background: #e91e63; }
+    #mic.recording { background: #c2185b; }
+    .status { font-size: 0.8em; color: #888; text-align: center; margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Pablo AI</h1>
+  <div id="chat"></div>
+  <div id="input-area">
+    <input id="input" placeholder="Type or speak...">
+    <button id="mic">Microphone</button>
+    <button id="send">Send</button>
+  </div>
+  <div class="status" id="status"></div>
+
+  <script>
+    // Generate or retrieve persistent session ID from localStorage
+    let sessionId = localStorage.getItem('goon_session_id');
+    if (!sessionId) {
+      sessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+      localStorage.setItem('goon_session_id', sessionId);
+    }
+
+    const ws = new WebSocket(`ws://${location.host}`);
+    const chat   = document.getElementById('chat');
+    const input  = document.getElementById('input');
+    const mic    = document.getElementById('mic');
+    const status = document.getElementById('status');
+    let recorder, audioChunks = [];
+    let sessionInitialized = false;
+
+    ws.onopen = () => {
+      // Send session ID on connection
+      ws.send(JSON.stringify({ type: 'init', sessionId: sessionId }));
+    };
+
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'sessionId') {
+        sessionInitialized = true;
+        console.log('Session initialized:', msg.sessionId);
+      } else if (msg.type === 'text') {
+        addMessage(msg.content, 'bot');
+      } else if (msg.type === 'audio') {
+        const audio = new Audio('data:audio/mp3;base64,' + msg.buffer);
+        audio.play();
+      }
+    };
+
+    function addMessage(text, sender) {
+      const div = document.createElement('div');
+      div.className = `msg ${sender}`;
+      div.textContent = text;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    document.getElementById('send').onclick = () => {
+      const text = input.value.trim();
+      if (text) {
+        ws.send(JSON.stringify({ type: 'text', content: text }));
+        addMessage(text, 'user');
+        input.value = '';
+      }
+    };
+
+    mic.onclick = async () => {
+      if (!recorder) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recorder = new MediaRecorder(stream);
+        audioChunks = [];
+        recorder.ondataavailable = e => audioChunks.push(e.data);
+        recorder.onstop = () => {
+          const blob = new Blob(audioChunks, { type: 'audio/wav' });
+          blob.arrayBuffer().then(buf => {
+            ws.send(JSON.stringify({ type: 'audio', buffer: Buffer.from(buf).toString('base64') }));
+          });
+          mic.classList.remove('recording');
+          status.textContent = '';
+        };
+        recorder.start();
+        mic.classList.add('recording');
+        status.textContent = 'Recording...';
+      } else {
+        recorder.stop();
+        recorder = null;
+      }
+    };
+
+    input.addEventListener('keypress', e => e.key === 'Enter' && document.getElementById('send').click());
+  </script>
+</body>
+</html>
