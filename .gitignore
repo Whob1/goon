@@ -3,3 +3,7 @@ dist/
 .npm/
 logs/
 .env
+
+# Test artifacts
+coverage/
+*.test.js.snap
