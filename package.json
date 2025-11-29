@@ -17,7 +17,12 @@
     "simple-git": "^3.25.0",
     "telegraf": "^4.16.3",
     "uuid": "^9.0.1",
-    "ws": "^8.17.1"
+    "ws": "^8.17.1",
+    "mistralai": "https://github.com/mistralai/mistral-src.git#v0.1.0",
+    "openai": "^4.0.0",
+    "elevenlabs": "https://github.com/elevenlabs/elevenlabs-node.git#v0.1.0",
+    "deepgram": "^1.0.3",
+    "webrtc-vad": "https://github.com/mozilla/webrtc-vad.git#v0.1.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.4",
