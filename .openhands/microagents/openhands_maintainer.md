@@ -4,10 +4,16 @@ type: knowledge
 version: 1.0.0
 agent: CodeActAgent
 triggers:
-  - "OpenHands Maintainer"
-  - "maintain OpenHands"
-  - "update OpenHands"
-  - "improve OpenHands"
+  - maintain
+  - update
+  - improve
+  - optimize
+  - document
+  - refactor
+  - clean
+  - enhance
+  - fix
+  - test
 ---
 
 # OpenHands Maintainer Microagent
