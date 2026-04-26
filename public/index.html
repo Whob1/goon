@@ -16,6 +16,7 @@
       --accent-2: #9b7bff;
       --ok: #2ecc71;
       --warn: #f39c12;
+      --danger: #f25f5c;
       --border: #24314d;
       --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
     }
@@ -32,13 +33,13 @@
       color: var(--text);
       display: flex;
       justify-content: center;
-      align-items: center;
-      padding: 16px;
+      align-items: stretch;
+      padding: 12px;
     }
 
     #app {
-      width: min(1200px, 100%);
-      height: min(940px, 95vh);
+      width: min(1400px, 100%);
+      height: min(1000px, 100vh - 24px);
       border: 1px solid var(--border);
       border-radius: 18px;
       background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent 35%), var(--panel);
@@ -56,18 +57,16 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 14px;
+      gap: 12px;
       flex-wrap: wrap;
     }
 
     .brand {
       font-weight: 700;
-      letter-spacing: 0.3px;
       display: flex;
       align-items: center;
       gap: 8px;
     }
-
     .brand-dot {
       width: 10px;
       height: 10px;
@@ -85,7 +84,6 @@
       padding: 8px 12px;
       font-size: 13px;
       cursor: pointer;
-      transition: 120ms ease;
     }
     .tab.active {
       border-color: transparent;
@@ -93,27 +91,44 @@
       box-shadow: inset 0 0 0 1px rgba(133,151,255,0.4);
     }
 
-    .status {
-      font-size: 12px;
-      color: var(--muted);
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
+    .status { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
     .pill {
       border: 1px solid var(--border);
       background: #0d1527;
       border-radius: 999px;
-      padding: 4px 8px;
+      padding: 5px 9px;
       color: var(--text);
+      white-space: nowrap;
     }
 
     .panel { display: none; height: 100%; }
     .panel.active { display: grid; }
 
-    #chat-panel { grid-template-rows: 1fr auto; }
+    #chat-panel {
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 0;
+      min-height: 0;
+    }
+
+    .chat-shell {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-width: 0;
+      min-height: 0;
+      border-right: 1px solid var(--border);
+    }
+
+    .chat-meta {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 12px;
+      background: #0a1020;
+    }
 
     #messages {
       overflow: auto;
@@ -121,6 +136,7 @@
       display: grid;
       gap: 12px;
       align-content: start;
+      min-height: 0;
     }
 
     .message {
@@ -131,42 +147,52 @@
       line-height: 1.35;
       word-break: break-word;
       border: 1px solid transparent;
-      animation: riseIn 120ms ease;
     }
-
-    @keyframes riseIn {
-      from { transform: translateY(2px); opacity: 0.6; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-
-    .message.user {
-      margin-left: auto;
-      background: linear-gradient(145deg, #234e96, #2c2e7e);
-      border-color: rgba(146, 174, 255, 0.3);
-      color: #f5f8ff;
-    }
-    .message.assistant {
-      background: #101a2f;
-      border-color: #23365e;
-      color: #f1f5ff;
-    }
-    .message.system {
-      margin-inline: auto;
-      background: #241d13;
-      border-color: #4f3b1b;
-      color: #ffd79a;
-      font-style: italic;
-      text-align: center;
-    }
+    .message.user { margin-left: auto; background: linear-gradient(145deg, #234e96, #2c2e7e); border-color: rgba(146,174,255,0.3); }
+    .message.assistant { background: #101a2f; border-color: #23365e; }
+    .message.system { margin-inline: auto; background: #241d13; border-color: #4f3b1b; color: #ffd79a; font-style: italic; text-align: center; }
 
     #composer {
       border-top: 1px solid var(--border);
       padding: 12px;
       display: grid;
-      grid-template-columns: 1fr auto auto;
+      grid-template-columns: 1fr auto;
       gap: 8px;
       background: #0b111d;
     }
+
+    #composer textarea {
+      min-height: 56px;
+      max-height: 160px;
+      resize: vertical;
+      grid-column: 1 / -1;
+    }
+
+    .composer-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .voice-console {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: 0;
+      background: #090f1b;
+    }
+
+    .voice-head {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      display: grid;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .meter { height: 8px; border-radius: 999px; background: #121c31; border: 1px solid var(--border); overflow: hidden; }
+    .meter > div { height: 100%; width: 0%; background: linear-gradient(90deg, #34d399, #60a5fa); transition: width 80ms linear; }
+
+    .voice-body { padding: 12px; display: grid; gap: 10px; overflow: auto; align-content: start; }
+
+    .field { display: grid; gap: 6px; }
+    .field label { font-size: 12px; color: var(--muted); }
 
     input, select, textarea, button {
       font: inherit;
@@ -177,7 +203,6 @@
       padding: 10px 12px;
     }
 
-    textarea { resize: vertical; min-height: 84px; }
     input:focus, select:focus, textarea:focus {
       outline: none;
       border-color: #6f90ff;
@@ -186,25 +211,14 @@
 
     button {
       cursor: pointer;
-      transition: 120ms ease;
       background: linear-gradient(135deg, #294779, #3d2f7c);
       border-color: #4f5f98;
     }
-    button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .ghost { background: #13203a; }
+    .danger { background: linear-gradient(135deg, #7e2f40, #7b2b2b); border-color: #9b3a4b; }
 
-    #settings-panel {
-      grid-template-rows: auto 1fr auto;
-      gap: 0;
-      overflow: hidden;
-    }
-
-    .settings-head {
-      padding: 14px;
-      border-bottom: 1px solid var(--border);
-      color: var(--muted);
-      font-size: 13px;
-    }
-
+    #settings-panel { grid-template-rows: auto 1fr auto; min-height: 0; }
+    .settings-head { padding: 14px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 13px; }
     .settings-body {
       overflow: auto;
       padding: 14px;
@@ -213,35 +227,24 @@
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       align-content: start;
     }
-
-    .field {
-      display: grid;
-      gap: 6px;
-      align-content: start;
-    }
-
-    .field label { font-size: 12px; color: var(--muted); }
-
     .field.full { grid-column: 1 / -1; }
-
-    .settings-foot {
-      border-top: 1px solid var(--border);
-      background: #0b111d;
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-      padding: 12px;
-      flex-wrap: wrap;
-    }
-
-    .ghost { background: #13203a; }
+    .settings-foot { border-top: 1px solid var(--border); background: #0b111d; display: flex; gap: 8px; justify-content: flex-end; padding: 12px; flex-wrap: wrap; }
     .provider-card { border:1px solid var(--border); border-radius:12px; padding:10px; background:#0d1525; display:grid; gap:6px; }
     .provider-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-    .provider-row code { background:#111a2e; padding:2px 6px; border-radius:6px; }
+
+    @media (max-width: 1024px) {
+      #app { height: 100vh; border-radius: 0; }
+      body { padding: 0; }
+      #chat-panel { grid-template-columns: 1fr; }
+      .chat-shell { border-right: 0; }
+      .voice-console { border-top: 1px solid var(--border); max-height: 42vh; }
+    }
 
     @media (max-width: 680px) {
       #composer { grid-template-columns: 1fr; }
       .message { max-width: 100%; }
+      .tabs { width: 100%; }
+      .tab { flex: 1; }
     }
   </style>
 </head>
@@ -250,7 +253,7 @@
     <header id="header">
       <div class="brand"><span class="brand-dot"></span> Goon VoiceFlow</div>
       <div class="tabs">
-        <button class="tab active" data-panel="chat-panel">Chat</button>
+        <button class="tab active" data-panel="chat-panel">Chat + Live Voice</button>
         <button class="tab" data-panel="settings-panel">Settings</button>
       </div>
       <div class="status">
@@ -260,16 +263,46 @@
     </header>
 
     <section id="chat-panel" class="panel active">
-      <div id="messages"></div>
-      <div id="composer">
-        <input id="input" type="text" placeholder="Type a message or slash command…" maxlength="10000" />
-        <button id="send">Send</button>
-        <button id="quick-settings" class="ghost">Open Settings</button>
+      <div class="chat-shell">
+        <div class="chat-meta">
+          <span id="turn-pill" class="pill">Turn: idle</span>
+          <span id="recognition-pill" class="pill">STT: unavailable</span>
+        </div>
+        <div id="messages"></div>
+        <div id="composer">
+          <textarea id="input" placeholder="Type a message or slash command…" maxlength="10000"></textarea>
+          <div class="composer-actions">
+            <button id="send">Send</button>
+            <button id="quick-settings" class="ghost">Open Settings</button>
+          </div>
+        </div>
       </div>
+
+      <aside class="voice-console">
+        <div class="voice-head">
+          <div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+            <strong>Live Voice Chat</strong>
+            <span class="pill" id="live-status">Offline</span>
+          </div>
+          <div class="meter"><div id="mic-meter-bar"></div></div>
+        </div>
+        <div class="voice-body">
+          <div class="field"><label for="voiceMode">Mode</label><select id="voiceMode"><option value="auto">Auto turn-taking (VAD)</option><option value="manual">Manual push-to-talk</option></select></div>
+          <div class="field"><label for="vadSensitivity">VAD Sensitivity</label><input id="vadSensitivity" type="range" min="0.02" max="0.2" step="0.01" value="0.07" /></div>
+          <div class="field"><label for="silenceMs">Turn end silence (ms)</label><input id="silenceMs" type="number" min="300" max="3000" step="50" value="900" /></div>
+          <div class="field"><label for="minSpeechMs">Minimum speech (ms)</label><input id="minSpeechMs" type="number" min="150" max="3000" step="50" value="400" /></div>
+          <div class="field"><label for="liveInterim">Interim transcript in chat</label><select id="liveInterim"><option value="true">On</option><option value="false">Off</option></select></div>
+          <div class="composer-actions">
+            <button id="voice-toggle">Start Live Chat</button>
+            <button id="ptt" class="ghost" disabled>Hold to Talk</button>
+          </div>
+          <div id="live-transcript" class="pill">Transcript preview will appear here.</div>
+        </div>
+      </aside>
     </section>
 
     <section id="settings-panel" class="panel">
-      <div class="settings-head">Settings apply instantly to this session. Use “Save Defaults” to persist for future sessions.</div>
+      <div class="settings-head">Responsive controls are optimized for mobile and desktop. Session settings apply instantly.</div>
       <form id="settings-form" class="settings-body">
         <div class="field"><label for="provider">LLM Provider</label><select id="provider"></select></div>
         <div class="field"><label for="fallbackProvider">Fallback Provider</label><select id="fallbackProvider"></select></div>
@@ -290,305 +323,456 @@
             <div id="provider-summary" class="status"></div>
           </div>
         </div>
+
         <div class="field"><label for="model">Model</label><input id="model" /></div>
         <div class="field"><label for="temperature">Temperature (0-2)</label><input id="temperature" type="number" step="0.1" min="0" max="2" /></div>
         <div class="field"><label for="memorySize">Memory Size (1-100)</label><input id="memorySize" type="number" min="1" max="100" /></div>
         <div class="field"><label for="maxTokens">Max Tokens (100-4000)</label><input id="maxTokens" type="number" min="100" max="4000" /></div>
+
         <div class="field"><label for="ttsEnabled">TTS Enabled</label><select id="ttsEnabled"><option value="false">Off</option><option value="true">On</option></select></div>
         <div class="field"><label for="ttsProvider">TTS Provider</label><select id="ttsProvider"><option value="openai">openai</option><option value="elevenlabs">elevenlabs</option></select></div>
         <div class="field"><label for="ttsVoice">TTS Voice</label><input id="ttsVoice" /></div>
         <div class="field"><label for="ttsModel">TTS Model</label><input id="ttsModel" /></div>
         <div class="field"><label for="ttsSpeed">TTS Speed (0.25-4)</label><input id="ttsSpeed" type="number" step="0.05" min="0.25" max="4" /></div>
+        <div class="field"><label for="ttsFormat">TTS Format</label><select id="ttsFormat"><option value="mp3">mp3</option><option value="wav">wav</option><option value="pcm">pcm</option></select></div>
+        <div class="field"><label for="ttsStyle">TTS Style / Prompt</label><input id="ttsStyle" placeholder="e.g. empathetic, concise" /></div>
+
         <div class="field"><label for="sttModel">STT Model</label><input id="sttModel" /></div>
         <div class="field"><label for="sttLanguage">STT Language</label><input id="sttLanguage" /></div>
         <div class="field"><label for="sttPunctuate">STT Punctuate</label><select id="sttPunctuate"><option value="true">On</option><option value="false">Off</option></select></div>
+        <div class="field"><label for="sttSmartFormat">STT Smart Format</label><select id="sttSmartFormat"><option value="true">On</option><option value="false">Off</option></select></div>
+        <div class="field"><label for="sttEndpointing">STT Endpointing (ms)</label><input id="sttEndpointing" type="number" min="0" max="3000" step="50" value="500" /></div>
+
         <div class="field full"><label for="systemPrompt">System Prompt</label><textarea id="systemPrompt"></textarea></div>
       </form>
       <div class="settings-foot">
-        <button id="refresh-settings" class="ghost">Reload</button>
-        <button id="apply-settings">Apply Session</button>
-        <button id="save-settings">Save Defaults</button>
+        <button id="refresh-settings" class="ghost" type="button">Reload</button>
+        <button id="apply-settings" type="button">Apply Session</button>
+        <button id="save-settings" type="button">Save Defaults</button>
       </div>
     </section>
   </div>
 
-  <script>
-    let ws;
-    let sessionId = localStorage.getItem('sessionId');
-    let pendingMessages = [];
-    let appendHandle = null;
-    let providerProfiles = [];
+<script>
+let ws;
+let sessionId = localStorage.getItem('sessionId');
+let pendingMessages = [];
+let appendHandle = null;
+let providerProfiles = [];
 
-    const messagesDiv = document.getElementById('messages');
-    const input = document.getElementById('input');
-    const sendBtn = document.getElementById('send');
-    const tabs = document.querySelectorAll('.tab');
-    const panels = document.querySelectorAll('.panel');
-    const connectionPill = document.getElementById('connection-pill');
-    const sessionPill = document.getElementById('session-pill');
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const recognitionSupported = Boolean(SpeechRecognition);
 
-    const fields = {
-      provider: document.getElementById('provider'),
-      fallbackProvider: document.getElementById('fallbackProvider'),
-      model: document.getElementById('model'),
-      temperature: document.getElementById('temperature'),
-      systemPrompt: document.getElementById('systemPrompt'),
-      memorySize: document.getElementById('memorySize'),
-      maxTokens: document.getElementById('maxTokens'),
-      ttsEnabled: document.getElementById('ttsEnabled'),
-      ttsProvider: document.getElementById('ttsProvider'),
-      ttsVoice: document.getElementById('ttsVoice'),
-      ttsModel: document.getElementById('ttsModel'),
-      ttsSpeed: document.getElementById('ttsSpeed'),
-      sttModel: document.getElementById('sttModel'),
-      sttLanguage: document.getElementById('sttLanguage'),
-      sttPunctuate: document.getElementById('sttPunctuate'),
-      providerProfileName: document.getElementById('providerProfileName'),
-      providerProfileBaseUrl: document.getElementById('providerProfileBaseUrl'),
-      providerProfileApiKey: document.getElementById('providerProfileApiKey'),
-      providerProfileDefaultModel: document.getElementById('providerProfileDefaultModel'),
-      providerProfileModels: document.getElementById('providerProfileModels')
-    };
+const messagesDiv = document.getElementById('messages');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const tabs = document.querySelectorAll('.tab');
+const panels = document.querySelectorAll('.panel');
+const connectionPill = document.getElementById('connection-pill');
+const sessionPill = document.getElementById('session-pill');
+const turnPill = document.getElementById('turn-pill');
+const recognitionPill = document.getElementById('recognition-pill');
+const liveStatus = document.getElementById('live-status');
+const liveTranscript = document.getElementById('live-transcript');
+const meterBar = document.getElementById('mic-meter-bar');
 
-    const setPanel = (id) => {
-      tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.panel === id));
-      panels.forEach(panel => panel.classList.toggle('active', panel.id === id));
-    };
+const voiceState = {
+  live: false,
+  assistantTurn: false,
+  recognition: null,
+  stream: null,
+  audioCtx: null,
+  analyser: null,
+  raf: null,
+  speaking: false,
+  speechStart: 0,
+  lastVoiceAt: 0,
+  interim: '',
+  final: ''
+};
 
-    tabs.forEach(tab => tab.addEventListener('click', () => setPanel(tab.dataset.panel)));
-    document.getElementById('quick-settings').addEventListener('click', () => setPanel('settings-panel'));
+const fields = {
+  provider: document.getElementById('provider'), fallbackProvider: document.getElementById('fallbackProvider'),
+  model: document.getElementById('model'), temperature: document.getElementById('temperature'), systemPrompt: document.getElementById('systemPrompt'),
+  memorySize: document.getElementById('memorySize'), maxTokens: document.getElementById('maxTokens'),
+  ttsEnabled: document.getElementById('ttsEnabled'), ttsProvider: document.getElementById('ttsProvider'), ttsVoice: document.getElementById('ttsVoice'),
+  ttsModel: document.getElementById('ttsModel'), ttsSpeed: document.getElementById('ttsSpeed'), ttsFormat: document.getElementById('ttsFormat'), ttsStyle: document.getElementById('ttsStyle'),
+  sttModel: document.getElementById('sttModel'), sttLanguage: document.getElementById('sttLanguage'), sttPunctuate: document.getElementById('sttPunctuate'),
+  sttSmartFormat: document.getElementById('sttSmartFormat'), sttEndpointing: document.getElementById('sttEndpointing'),
+  providerProfileName: document.getElementById('providerProfileName'), providerProfileBaseUrl: document.getElementById('providerProfileBaseUrl'),
+  providerProfileApiKey: document.getElementById('providerProfileApiKey'), providerProfileDefaultModel: document.getElementById('providerProfileDefaultModel'), providerProfileModels: document.getElementById('providerProfileModels')
+};
 
-    function queueMessage(content, type) {
-      pendingMessages.push({ content, type });
-      if (appendHandle) return;
-      appendHandle = requestAnimationFrame(() => {
-        const frag = document.createDocumentFragment();
-        for (const msg of pendingMessages) {
-          const div = document.createElement('div');
-          div.className = `message ${msg.type}`;
-          div.textContent = msg.content;
-          frag.appendChild(div);
-        }
-        messagesDiv.appendChild(frag);
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        pendingMessages = [];
-        appendHandle = null;
-      });
+recognitionPill.textContent = recognitionSupported ? 'STT: browser speech ready' : 'STT: browser speech unavailable';
+
+const setPanel = (id) => {
+  tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.panel === id));
+  panels.forEach(panel => panel.classList.toggle('active', panel.id === id));
+};
+
+tabs.forEach(tab => tab.addEventListener('click', () => setPanel(tab.dataset.panel)));
+document.getElementById('quick-settings').addEventListener('click', () => setPanel('settings-panel'));
+
+function queueMessage(content, type) {
+  pendingMessages.push({ content, type });
+  if (appendHandle) return;
+  appendHandle = requestAnimationFrame(() => {
+    const frag = document.createDocumentFragment();
+    for (const msg of pendingMessages) {
+      const div = document.createElement('div');
+      div.className = `message ${msg.type}`;
+      div.textContent = msg.content;
+      frag.appendChild(div);
     }
+    messagesDiv.appendChild(frag);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    pendingMessages = [];
+    appendHandle = null;
+  });
+}
 
-    function setConnectionStatus(text) {
-      connectionPill.textContent = text;
+function setConnectionStatus(text) { connectionPill.textContent = text; }
+function setTurnStatus(text) { turnPill.textContent = `Turn: ${text}`; }
+
+async function fetchProviders() {
+  if (!sessionId) return;
+  const res = await fetch(`/api/providers/${encodeURIComponent(sessionId)}`);
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Failed to load provider profiles');
+  providerProfiles = data.providers || [];
+  const names = providerProfiles.map(p => p.name);
+  for (const key of ['provider', 'fallbackProvider']) {
+    fields[key].innerHTML = names.map(p => `<option value="${p}">${p}</option>`).join('');
+  }
+  updateProviderSummary();
+  syncProviderEditor(fields.provider.value || data.activeProvider);
+}
+
+function updateProviderSummary() {
+  const el = document.getElementById('provider-summary');
+  if (!providerProfiles.length) { el.textContent = 'No provider profiles configured'; return; }
+  el.innerHTML = providerProfiles.map(p => `<span class="pill">${p.name}: ${p.model || 'no model'} (${p.hasApiKey ? 'key' : 'no key'})</span>`).join(' ');
+}
+
+function syncProviderEditor(providerName) {
+  const profile = providerProfiles.find(p => p.name === providerName);
+  if (!profile) return;
+  fields.providerProfileName.value = profile.name;
+  fields.providerProfileBaseUrl.value = profile.baseUrl || '';
+  fields.providerProfileApiKey.value = '';
+  fields.providerProfileDefaultModel.value = profile.model || '';
+  fields.providerProfileModels.value = (profile.models || []).join(', ');
+}
+
+async function fetchSettings() {
+  if (!sessionId) return;
+  const res = await fetch(`/api/settings/${encodeURIComponent(sessionId)}`);
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Failed to load settings');
+
+  const s = data.settings;
+  await fetchProviders();
+  fields.provider.value = s.provider;
+  fields.fallbackProvider.value = s.fallbackProvider;
+  fields.model.value = s.model;
+  fields.temperature.value = s.temperature;
+  fields.systemPrompt.value = s.systemPrompt;
+  fields.memorySize.value = s.memorySize;
+  fields.maxTokens.value = s.maxTokens;
+  fields.ttsEnabled.value = String(Boolean(s.ttsEnabled));
+  fields.ttsProvider.value = s.tts?.provider || 'openai';
+  fields.ttsVoice.value = s.tts?.voice || '';
+  fields.ttsModel.value = s.tts?.model || '';
+  fields.ttsSpeed.value = s.tts?.speed ?? 1;
+  fields.ttsFormat.value = s.tts?.format || 'mp3';
+  fields.ttsStyle.value = s.tts?.style || '';
+  fields.sttModel.value = s.stt?.model || '';
+  fields.sttLanguage.value = s.stt?.language || '';
+  fields.sttPunctuate.value = String(Boolean(s.stt?.punctuate));
+  fields.sttSmartFormat.value = String(Boolean(s.stt?.smartFormat));
+  fields.sttEndpointing.value = s.stt?.endpointing ?? 500;
+  syncProviderEditor(s.provider);
+}
+
+function collectSettings() {
+  return {
+    provider: fields.provider.value,
+    fallbackProvider: fields.fallbackProvider.value,
+    model: fields.model.value.trim(),
+    temperature: Number(fields.temperature.value),
+    systemPrompt: fields.systemPrompt.value.trim(),
+    memorySize: Number(fields.memorySize.value),
+    maxTokens: Number(fields.maxTokens.value),
+    ttsEnabled: fields.ttsEnabled.value === 'true',
+    tts: {
+      provider: fields.ttsProvider.value,
+      voice: fields.ttsVoice.value.trim(),
+      model: fields.ttsModel.value.trim(),
+      speed: Number(fields.ttsSpeed.value),
+      format: fields.ttsFormat.value,
+      style: fields.ttsStyle.value.trim()
+    },
+    stt: {
+      model: fields.sttModel.value.trim(),
+      language: fields.sttLanguage.value.trim(),
+      punctuate: fields.sttPunctuate.value === 'true',
+      smartFormat: fields.sttSmartFormat.value === 'true',
+      endpointing: Number(fields.sttEndpointing.value)
     }
+  };
+}
 
-    async function fetchProviders() {
-      if (!sessionId) return;
-      const res = await fetch(`/api/providers/${encodeURIComponent(sessionId)}`);
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to load provider profiles');
-      providerProfiles = data.providers || [];
-      const names = providerProfiles.map(p => p.name);
-      for (const key of ['provider', 'fallbackProvider']) {
-        fields[key].innerHTML = names.map(p => `<option value="${p}">${p}</option>`).join('');
+async function saveProviderProfile() {
+  if (!sessionId) return;
+  const payload = {
+    name: fields.providerProfileName.value.trim(),
+    baseUrl: fields.providerProfileBaseUrl.value.trim(),
+    apiKey: fields.providerProfileApiKey.value.trim(),
+    defaultModel: fields.providerProfileDefaultModel.value.trim(),
+    models: fields.providerProfileModels.value.split(',').map(v => v.trim()).filter(Boolean)
+  };
+  if (!payload.name || !payload.baseUrl || !payload.apiKey) throw new Error('Provider name, base URL and API key are required.');
+  const response = await fetch(`/api/providers/${encodeURIComponent(sessionId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const data = await response.json();
+  if (!data.success) throw new Error(data.error || 'Failed to save provider profile');
+  queueMessage(`🔌 Provider profile "${payload.name}" saved.`, 'system');
+  await fetchSettings();
+}
+
+async function deleteProviderProfile() {
+  if (!sessionId) return;
+  const name = fields.providerProfileName.value.trim();
+  if (!name) throw new Error('Choose or enter a provider profile name first.');
+  const response = await fetch(`/api/providers/${encodeURIComponent(sessionId)}/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  const data = await response.json();
+  if (!data.success) throw new Error(data.error || 'Failed to delete provider profile');
+  queueMessage(`🗑️ Provider profile "${name}" removed.`, 'system');
+  await fetchSettings();
+}
+
+async function applySettings() {
+  if (!sessionId) return;
+  const response = await fetch(`/api/settings/${encodeURIComponent(sessionId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(collectSettings()) });
+  const data = await response.json();
+  if (!data.success) throw new Error(data.error || 'Failed to update settings');
+  queueMessage('✅ Session settings updated.', 'system');
+}
+
+async function saveDefaults() {
+  if (!sessionId) return;
+  const response = await fetch(`/api/settings/${encodeURIComponent(sessionId)}/save`, { method: 'POST' });
+  const data = await response.json();
+  if (!data.success) throw new Error(data.error || 'Failed to save defaults');
+  queueMessage('💾 Settings saved as defaults.', 'system');
+}
+
+async function withUiFeedback(fn) {
+  try { await fn(); } catch (err) { queueMessage(`⚠️ ${err.message}`, 'system'); }
+}
+
+function sendMessage(textOverride = '') {
+  const text = (textOverride || input.value).trim();
+  if (!text || ws?.readyState !== WebSocket.OPEN) return;
+  queueMessage(text, 'user');
+  ws.send(JSON.stringify({ type: 'text', content: text }));
+  input.value = '';
+  setTurnStatus('assistant responding');
+}
+
+function connect() {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(protocol + '//' + window.location.host);
+
+  ws.onopen = () => {
+    setConnectionStatus('Connected');
+    ws.send(JSON.stringify({ type: 'init', sessionId }));
+  };
+
+  ws.onmessage = async (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === 'sessionId') {
+      sessionId = data.sessionId;
+      localStorage.setItem('sessionId', sessionId);
+      sessionPill.textContent = sessionId;
+      await withUiFeedback(fetchSettings);
+    } else if (data.type === 'text') {
+      queueMessage(data.content, 'assistant');
+      setTurnStatus('your turn');
+      voiceState.assistantTurn = false;
+    } else if (data.type === 'error') {
+      queueMessage(data.content, 'system');
+      setTurnStatus('error');
+      voiceState.assistantTurn = false;
+    } else if (data.type === 'audio') {
+      voiceState.assistantTurn = true;
+      setTurnStatus('assistant speaking');
+      const audio = new Audio('data:audio/mpeg;base64,' + data.buffer);
+      audio.onended = () => { voiceState.assistantTurn = false; setTurnStatus('your turn'); };
+      audio.play().catch(err => queueMessage(`Audio playback failed: ${err.message}`, 'system'));
+    }
+  };
+
+  ws.onclose = () => {
+    setConnectionStatus('Reconnecting…');
+    queueMessage('Connection lost. Reconnecting…', 'system');
+    setTimeout(connect, 2500);
+  };
+  ws.onerror = () => setConnectionStatus('Connection Error');
+}
+
+function setupRecognition() {
+  if (!recognitionSupported) return;
+  const rec = new SpeechRecognition();
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.lang = fields.sttLanguage.value || 'en-US';
+  rec.onresult = (event) => {
+    let interim = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) voiceState.final += ` ${transcript}`;
+      else interim += transcript;
+    }
+    voiceState.interim = interim.trim();
+    const preview = `${voiceState.final} ${voiceState.interim}`.trim();
+    if (preview) {
+      liveTranscript.textContent = preview;
+      if (document.getElementById('liveInterim').value === 'true') setTurnStatus('listening');
+    }
+  };
+  rec.onerror = (e) => queueMessage(`🎤 Speech recognition issue: ${e.error}`, 'system');
+  rec.onend = () => {
+    if (voiceState.live && !voiceState.assistantTurn) {
+      try { rec.start(); } catch {}
+    }
+  };
+  voiceState.recognition = rec;
+}
+
+function finalizeVoiceTurn() {
+  const text = `${voiceState.final} ${voiceState.interim}`.trim();
+  voiceState.final = '';
+  voiceState.interim = '';
+  if (!text) return;
+  liveTranscript.textContent = text;
+  sendMessage(text);
+  setTurnStatus('assistant responding');
+}
+
+async function startLiveVoice() {
+  if (voiceState.live) return;
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true
+    }
+  });
+  voiceState.live = true;
+  voiceState.stream = stream;
+  liveStatus.textContent = 'Live';
+  document.getElementById('voice-toggle').textContent = 'Stop Live Chat';
+  document.getElementById('ptt').disabled = document.getElementById('voiceMode').value !== 'manual';
+
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = audioCtx.createMediaStreamSource(stream);
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 512;
+  source.connect(analyser);
+  voiceState.audioCtx = audioCtx;
+  voiceState.analyser = analyser;
+
+  setupRecognition();
+  if (voiceState.recognition) voiceState.recognition.start();
+
+  const data = new Uint8Array(analyser.fftSize);
+  const tick = () => {
+    if (!voiceState.live) return;
+    analyser.getByteTimeDomainData(data);
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+      const n = (data[i] - 128) / 128;
+      sum += n * n;
+    }
+    const rms = Math.sqrt(sum / data.length);
+    meterBar.style.width = `${Math.min(100, rms * 800)}%`;
+
+    const sensitivity = Number(document.getElementById('vadSensitivity').value);
+    const now = Date.now();
+
+    if (document.getElementById('voiceMode').value === 'auto' && !voiceState.assistantTurn) {
+      if (rms > sensitivity) {
+        if (!voiceState.speaking) voiceState.speechStart = now;
+        voiceState.speaking = true;
+        voiceState.lastVoiceAt = now;
+        setTurnStatus('listening');
       }
-      updateProviderSummary();
-      syncProviderEditor(fields.provider.value || data.activeProvider);
-    }
 
-    function updateProviderSummary() {
-      const el = document.getElementById('provider-summary');
-      if (!providerProfiles.length) {
-        el.textContent = 'No provider profiles configured';
-        return;
-      }
-      el.innerHTML = providerProfiles.map(p => `<span class="pill">${p.name}: ${p.model || 'no model'} (${p.hasApiKey ? 'key' : 'no key'})</span>`).join(' ');
-    }
-
-    function syncProviderEditor(providerName) {
-      const profile = providerProfiles.find(p => p.name === providerName);
-      if (!profile) return;
-      fields.providerProfileName.value = profile.name;
-      fields.providerProfileBaseUrl.value = profile.baseUrl || '';
-      fields.providerProfileApiKey.value = '';
-      fields.providerProfileDefaultModel.value = profile.model || '';
-      fields.providerProfileModels.value = (profile.models || []).join(', ');
-      if (profile.models?.length && !profile.models.includes(fields.model.value)) {
-        fields.model.value = profile.model || profile.models[0] || fields.model.value;
+      const silenceMs = Number(document.getElementById('silenceMs').value);
+      const minSpeechMs = Number(document.getElementById('minSpeechMs').value);
+      if (voiceState.speaking && now - voiceState.lastVoiceAt > silenceMs) {
+        const duration = voiceState.lastVoiceAt - voiceState.speechStart;
+        voiceState.speaking = false;
+        if (duration >= minSpeechMs) finalizeVoiceTurn();
       }
     }
 
-    async function fetchSettings() {
-      if (!sessionId) return;
-      const res = await fetch(`/api/settings/${encodeURIComponent(sessionId)}`);
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to load settings');
+    voiceState.raf = requestAnimationFrame(tick);
+  };
+  tick();
+}
 
-      const s = data.settings;
-      await fetchProviders();
-      fields.provider.value = s.provider;
-      fields.fallbackProvider.value = s.fallbackProvider;
-      fields.model.value = s.model;
-      fields.temperature.value = s.temperature;
-      fields.systemPrompt.value = s.systemPrompt;
-      fields.memorySize.value = s.memorySize;
-      fields.maxTokens.value = s.maxTokens;
-      fields.ttsEnabled.value = String(Boolean(s.ttsEnabled));
-      fields.ttsProvider.value = s.tts?.provider || 'openai';
-      fields.ttsVoice.value = s.tts?.voice || '';
-      fields.ttsModel.value = s.tts?.model || '';
-      fields.ttsSpeed.value = s.tts?.speed ?? 1;
-      fields.sttModel.value = s.stt?.model || '';
-      fields.sttLanguage.value = s.stt?.language || '';
-      fields.sttPunctuate.value = String(Boolean(s.stt?.punctuate));
-      syncProviderEditor(s.provider);
-    }
+async function stopLiveVoice() {
+  voiceState.live = false;
+  liveStatus.textContent = 'Offline';
+  document.getElementById('voice-toggle').textContent = 'Start Live Chat';
+  document.getElementById('ptt').disabled = true;
+  setTurnStatus('idle');
+  if (voiceState.raf) cancelAnimationFrame(voiceState.raf);
+  if (voiceState.recognition) { try { voiceState.recognition.stop(); } catch {} }
+  if (voiceState.stream) voiceState.stream.getTracks().forEach(t => t.stop());
+  if (voiceState.audioCtx) await voiceState.audioCtx.close();
+  meterBar.style.width = '0%';
+}
 
-    function collectSettings() {
-      return {
-        provider: fields.provider.value,
-        fallbackProvider: fields.fallbackProvider.value,
-        model: fields.model.value.trim(),
-        temperature: Number(fields.temperature.value),
-        systemPrompt: fields.systemPrompt.value.trim(),
-        memorySize: Number(fields.memorySize.value),
-        maxTokens: Number(fields.maxTokens.value),
-        ttsEnabled: fields.ttsEnabled.value === 'true',
-        tts: {
-          provider: fields.ttsProvider.value,
-          voice: fields.ttsVoice.value.trim(),
-          model: fields.ttsModel.value.trim(),
-          speed: Number(fields.ttsSpeed.value)
-        },
-        stt: {
-          model: fields.sttModel.value.trim(),
-          language: fields.sttLanguage.value.trim(),
-          punctuate: fields.sttPunctuate.value === 'true'
-        }
-      };
-    }
+sendBtn.addEventListener('click', () => sendMessage());
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
 
-    async function saveProviderProfile() {
-      if (!sessionId) return;
-      const payload = {
-        name: fields.providerProfileName.value.trim(),
-        baseUrl: fields.providerProfileBaseUrl.value.trim(),
-        apiKey: fields.providerProfileApiKey.value.trim(),
-        defaultModel: fields.providerProfileDefaultModel.value.trim(),
-        models: fields.providerProfileModels.value.split(',').map(v => v.trim()).filter(Boolean)
-      };
-      if (!payload.name || !payload.baseUrl || !payload.apiKey) {
-        throw new Error('Provider name, base URL and API key are required to save a profile.');
-      }
-      const response = await fetch(`/api/providers/${encodeURIComponent(sessionId)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error || 'Failed to save provider profile');
-      queueMessage(`🔌 Provider profile "${payload.name}" saved.`, 'system');
-      await fetchSettings();
-      fields.provider.value = payload.name;
-      fields.providerProfileApiKey.value = '';
-    }
+document.getElementById('voice-toggle').addEventListener('click', () => withUiFeedback(async () => {
+  if (!recognitionSupported) throw new Error('Browser speech recognition unavailable; use text chat or external STT.');
+  if (!voiceState.live) await startLiveVoice();
+  else await stopLiveVoice();
+}));
 
-    async function deleteProviderProfile() {
-      if (!sessionId) return;
-      const name = fields.providerProfileName.value.trim();
-      if (!name) throw new Error('Choose or enter a provider profile name first.');
-      const response = await fetch(`/api/providers/${encodeURIComponent(sessionId)}/${encodeURIComponent(name)}`, { method: 'DELETE' });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error || 'Failed to delete provider profile');
-      queueMessage(`🗑️ Provider profile "${name}" removed.`, 'system');
-      await fetchSettings();
-    }
+const ptt = document.getElementById('ptt');
+ptt.addEventListener('pointerdown', () => {
+  if (!voiceState.live || document.getElementById('voiceMode').value !== 'manual') return;
+  setTurnStatus('manual listening');
+  voiceState.final = '';
+  voiceState.interim = '';
+});
+ptt.addEventListener('pointerup', () => {
+  if (!voiceState.live || document.getElementById('voiceMode').value !== 'manual') return;
+  finalizeVoiceTurn();
+});
 
-    async function applySettings() {
-      if (!sessionId) return;
-      const response = await fetch(`/api/settings/${encodeURIComponent(sessionId)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(collectSettings())
-      });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error || 'Failed to update settings');
-      queueMessage('✅ Session settings updated from Settings page.', 'system');
-    }
+document.getElementById('voiceMode').addEventListener('change', () => {
+  ptt.disabled = !voiceState.live || document.getElementById('voiceMode').value !== 'manual';
+});
 
-    async function saveDefaults() {
-      if (!sessionId) return;
-      const response = await fetch(`/api/settings/${encodeURIComponent(sessionId)}/save`, { method: 'POST' });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error || 'Failed to save defaults');
-      queueMessage('💾 Settings saved as defaults for this session id.', 'system');
-    }
+document.getElementById('refresh-settings').addEventListener('click', () => withUiFeedback(fetchSettings));
+document.getElementById('apply-settings').addEventListener('click', () => withUiFeedback(applySettings));
+document.getElementById('save-settings').addEventListener('click', () => withUiFeedback(saveDefaults));
+document.getElementById('provider-save').addEventListener('click', () => withUiFeedback(saveProviderProfile));
+document.getElementById('provider-delete').addEventListener('click', () => withUiFeedback(deleteProviderProfile));
+fields.provider.addEventListener('change', () => syncProviderEditor(fields.provider.value));
 
-    async function withUiFeedback(fn) {
-      try {
-        await fn();
-      } catch (err) {
-        queueMessage(`⚠️ ${err.message}`, 'system');
-      }
-    }
-
-    function connect() {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      ws = new WebSocket(protocol + '//' + window.location.host);
-
-      ws.onopen = () => {
-        setConnectionStatus('Connected');
-        ws.send(JSON.stringify({ type: 'init', sessionId }));
-      };
-
-      ws.onmessage = async (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'sessionId') {
-          sessionId = data.sessionId;
-          localStorage.setItem('sessionId', sessionId);
-          sessionPill.textContent = sessionId;
-          await withUiFeedback(fetchSettings);
-        } else if (data.type === 'text') {
-          queueMessage(data.content, 'assistant');
-        } else if (data.type === 'error') {
-          queueMessage(data.content, 'system');
-        } else if (data.type === 'audio') {
-          const audio = new Audio('data:audio/mpeg;base64,' + data.buffer);
-          audio.play().catch(err => queueMessage(`Audio playback failed: ${err.message}`, 'system'));
-        }
-      };
-
-      ws.onclose = () => {
-        setConnectionStatus('Reconnecting…');
-        queueMessage('Connection lost. Reconnecting…', 'system');
-        setTimeout(connect, 2500);
-      };
-
-      ws.onerror = () => setConnectionStatus('Connection Error');
-    }
-
-    function sendMessage() {
-      const text = input.value.trim();
-      if (!text || ws?.readyState !== WebSocket.OPEN) return;
-      queueMessage(text, 'user');
-      ws.send(JSON.stringify({ type: 'text', content: text }));
-      input.value = '';
-    }
-
-    sendBtn.addEventListener('click', sendMessage);
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
-
-    document.getElementById('refresh-settings').addEventListener('click', () => withUiFeedback(fetchSettings));
-    document.getElementById('apply-settings').addEventListener('click', () => withUiFeedback(applySettings));
-    document.getElementById('save-settings').addEventListener('click', () => withUiFeedback(saveDefaults));
-    document.getElementById('provider-save').addEventListener('click', () => withUiFeedback(saveProviderProfile));
-    document.getElementById('provider-delete').addEventListener('click', () => withUiFeedback(deleteProviderProfile));
-    fields.provider.addEventListener('change', () => syncProviderEditor(fields.provider.value));
-
-    connect();
-  </script>
+connect();
+</script>
 </body>
 </html>
