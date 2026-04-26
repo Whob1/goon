@@ -1,134 +1,438 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Goon VoiceFlow</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      color-scheme: dark;
+      --bg: #06080f;
+      --panel: #101522;
+      --panel-2: #151d30;
+      --text: #ecf2ff;
+      --muted: #9da9c2;
+      --accent: #6ea8fe;
+      --accent-2: #9b7bff;
+      --ok: #2ecc71;
+      --warn: #f39c12;
+      --border: #24314d;
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      height: 100vh;
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background:
+        radial-gradient(1200px 500px at 0% -5%, #1a2240 0%, transparent 70%),
+        radial-gradient(1000px 400px at 100% 0%, #271a43 0%, transparent 65%),
+        var(--bg);
+      color: var(--text);
       display: flex;
       justify-content: center;
       align-items: center;
+      padding: 16px;
     }
+
     #app {
-      width: 90%;
-      max-width: 800px;
-      height: 90vh;
-      background: white;
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      width: min(1200px, 100%);
+      height: min(940px, 95vh);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent 35%), var(--panel);
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+      backdrop-filter: blur(8px);
+    }
+
+    #header {
+      border-bottom: 1px solid var(--border);
+      background: #0b111e;
+      padding: 12px 16px;
       display: flex;
-      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 0 20px rgba(110, 168, 254, 0.7);
+    }
+
+    .tabs { display: flex; gap: 8px; }
+    .tab {
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: 120ms ease;
+    }
+    .tab.active {
+      border-color: transparent;
+      background: linear-gradient(135deg, rgba(110,168,254,0.2), rgba(155,123,255,0.2));
+      box-shadow: inset 0 0 0 1px rgba(133,151,255,0.4);
+    }
+
+    .status {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      border: 1px solid var(--border);
+      background: #0d1527;
+      border-radius: 999px;
+      padding: 4px 8px;
+      color: var(--text);
+    }
+
+    .panel { display: none; height: 100%; }
+    .panel.active { display: grid; }
+
+    #chat-panel { grid-template-rows: 1fr auto; }
+
+    #messages {
+      overflow: auto;
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .message {
+      max-width: min(85%, 760px);
+      border-radius: 14px;
+      padding: 10px 12px;
+      white-space: pre-wrap;
+      line-height: 1.35;
+      word-break: break-word;
+      border: 1px solid transparent;
+      animation: riseIn 120ms ease;
+    }
+
+    @keyframes riseIn {
+      from { transform: translateY(2px); opacity: 0.6; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .message.user {
+      margin-left: auto;
+      background: linear-gradient(145deg, #234e96, #2c2e7e);
+      border-color: rgba(146, 174, 255, 0.3);
+      color: #f5f8ff;
+    }
+    .message.assistant {
+      background: #101a2f;
+      border-color: #23365e;
+      color: #f1f5ff;
+    }
+    .message.system {
+      margin-inline: auto;
+      background: #241d13;
+      border-color: #4f3b1b;
+      color: #ffd79a;
+      font-style: italic;
+      text-align: center;
+    }
+
+    #composer {
+      border-top: 1px solid var(--border);
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      background: #0b111d;
+    }
+
+    input, select, textarea, button {
+      font: inherit;
+      color: var(--text);
+      border: 1px solid var(--border);
+      background: #0f1729;
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    textarea { resize: vertical; min-height: 84px; }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #6f90ff;
+      box-shadow: 0 0 0 3px rgba(111, 144, 255, 0.2);
+    }
+
+    button {
+      cursor: pointer;
+      transition: 120ms ease;
+      background: linear-gradient(135deg, #294779, #3d2f7c);
+      border-color: #4f5f98;
+    }
+    button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+    #settings-panel {
+      grid-template-rows: auto 1fr auto;
+      gap: 0;
       overflow: hidden;
     }
-    #header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 20px;
-      text-align: center;
-      font-size: 24px;
-      font-weight: bold;
+
+    .settings-head {
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 13px;
     }
-    #messages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 20px;
-      background: #f5f5f5;
+
+    .settings-body {
+      overflow: auto;
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      align-content: start;
     }
-    .message {
-      margin-bottom: 15px;
-      padding: 12px 16px;
-      border-radius: 12px;
-      max-width: 80%;
-      word-wrap: break-word;
-      white-space: pre-wrap;
+
+    .field {
+      display: grid;
+      gap: 6px;
+      align-content: start;
     }
-    .user {
-      background: #667eea;
-      color: white;
-      margin-left: auto;
-      text-align: right;
-    }
-    .assistant {
-      background: white;
-      color: #333;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    .system {
-      background: #ffeaa7;
-      color: #333;
-      text-align: center;
-      margin: 0 auto;
-      font-style: italic;
-    }
-    #input-area {
-      padding: 20px;
-      background: white;
-      border-top: 1px solid #e0e0e0;
+
+    .field label { font-size: 12px; color: var(--muted); }
+
+    .field.full { grid-column: 1 / -1; }
+
+    .settings-foot {
+      border-top: 1px solid var(--border);
+      background: #0b111d;
       display: flex;
-      gap: 10px;
-    }
-    #input {
-      flex: 1;
+      gap: 8px;
+      justify-content: flex-end;
       padding: 12px;
-      border: 2px solid #e0e0e0;
-      border-radius: 25px;
-      font-size: 16px;
-      outline: none;
-      transition: border-color 0.3s;
+      flex-wrap: wrap;
     }
-    #input:focus {
-      border-color: #667eea;
-    }
-    button {
-      padding: 12px 24px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border: none;
-      border-radius: 25px;
-      font-size: 16px;
-      cursor: pointer;
-      transition: transform 0.2s;
-    }
-    button:hover {
-      transform: scale(1.05);
-    }
-    button:active {
-      transform: scale(0.95);
-    }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+
+    .ghost { background: #13203a; }
+
+    @media (max-width: 680px) {
+      #composer { grid-template-columns: 1fr; }
+      .message { max-width: 100%; }
     }
   </style>
 </head>
 <body>
   <div id="app">
-    <div id="header">Goon VoiceFlow</div>
-    <div id="messages"></div>
-    <div id="input-area">
-      <input type="text" id="input" placeholder="Type your message..." />
-      <button id="send">Send</button>
-    </div>
+    <header id="header">
+      <div class="brand"><span class="brand-dot"></span> Goon VoiceFlow</div>
+      <div class="tabs">
+        <button class="tab active" data-panel="chat-panel">Chat</button>
+        <button class="tab" data-panel="settings-panel">Settings</button>
+      </div>
+      <div class="status">
+        <span class="pill" id="connection-pill">Connecting…</span>
+        <span class="pill" id="session-pill">No Session</span>
+      </div>
+    </header>
+
+    <section id="chat-panel" class="panel active">
+      <div id="messages"></div>
+      <div id="composer">
+        <input id="input" type="text" placeholder="Type a message or slash command…" maxlength="10000" />
+        <button id="send">Send</button>
+        <button id="quick-settings" class="ghost">Open Settings</button>
+      </div>
+    </section>
+
+    <section id="settings-panel" class="panel">
+      <div class="settings-head">Settings apply instantly to this session. Use “Save Defaults” to persist for future sessions.</div>
+      <form id="settings-form" class="settings-body">
+        <div class="field"><label for="provider">LLM Provider</label><select id="provider"></select></div>
+        <div class="field"><label for="fallbackProvider">Fallback Provider</label><select id="fallbackProvider"></select></div>
+        <div class="field"><label for="model">Model</label><input id="model" /></div>
+        <div class="field"><label for="temperature">Temperature (0-2)</label><input id="temperature" type="number" step="0.1" min="0" max="2" /></div>
+        <div class="field"><label for="memorySize">Memory Size (1-100)</label><input id="memorySize" type="number" min="1" max="100" /></div>
+        <div class="field"><label for="maxTokens">Max Tokens (100-4000)</label><input id="maxTokens" type="number" min="100" max="4000" /></div>
+        <div class="field"><label for="ttsEnabled">TTS Enabled</label><select id="ttsEnabled"><option value="false">Off</option><option value="true">On</option></select></div>
+        <div class="field"><label for="ttsProvider">TTS Provider</label><select id="ttsProvider"><option value="openai">openai</option><option value="elevenlabs">elevenlabs</option></select></div>
+        <div class="field"><label for="ttsVoice">TTS Voice</label><input id="ttsVoice" /></div>
+        <div class="field"><label for="ttsModel">TTS Model</label><input id="ttsModel" /></div>
+        <div class="field"><label for="ttsSpeed">TTS Speed (0.25-4)</label><input id="ttsSpeed" type="number" step="0.05" min="0.25" max="4" /></div>
+        <div class="field"><label for="sttModel">STT Model</label><input id="sttModel" /></div>
+        <div class="field"><label for="sttLanguage">STT Language</label><input id="sttLanguage" /></div>
+        <div class="field"><label for="sttPunctuate">STT Punctuate</label><select id="sttPunctuate"><option value="true">On</option><option value="false">Off</option></select></div>
+        <div class="field full"><label for="systemPrompt">System Prompt</label><textarea id="systemPrompt"></textarea></div>
+      </form>
+      <div class="settings-foot">
+        <button id="refresh-settings" class="ghost">Reload</button>
+        <button id="apply-settings">Apply Session</button>
+        <button id="save-settings">Save Defaults</button>
+      </div>
+    </section>
   </div>
 
   <script>
     let ws;
     let sessionId = localStorage.getItem('sessionId');
+    let pendingMessages = [];
+    let appendHandle = null;
+
     const messagesDiv = document.getElementById('messages');
     const input = document.getElementById('input');
     const sendBtn = document.getElementById('send');
+    const tabs = document.querySelectorAll('.tab');
+    const panels = document.querySelectorAll('.panel');
+    const connectionPill = document.getElementById('connection-pill');
+    const sessionPill = document.getElementById('session-pill');
 
-    function addMessage(content, type) {
-      const div = document.createElement('div');
-      div.className = 'message ' + type;
-      div.textContent = content;
-      messagesDiv.appendChild(div);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    const fields = {
+      provider: document.getElementById('provider'),
+      fallbackProvider: document.getElementById('fallbackProvider'),
+      model: document.getElementById('model'),
+      temperature: document.getElementById('temperature'),
+      systemPrompt: document.getElementById('systemPrompt'),
+      memorySize: document.getElementById('memorySize'),
+      maxTokens: document.getElementById('maxTokens'),
+      ttsEnabled: document.getElementById('ttsEnabled'),
+      ttsProvider: document.getElementById('ttsProvider'),
+      ttsVoice: document.getElementById('ttsVoice'),
+      ttsModel: document.getElementById('ttsModel'),
+      ttsSpeed: document.getElementById('ttsSpeed'),
+      sttModel: document.getElementById('sttModel'),
+      sttLanguage: document.getElementById('sttLanguage'),
+      sttPunctuate: document.getElementById('sttPunctuate')
+    };
+
+    const setPanel = (id) => {
+      tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.panel === id));
+      panels.forEach(panel => panel.classList.toggle('active', panel.id === id));
+    };
+
+    tabs.forEach(tab => tab.addEventListener('click', () => setPanel(tab.dataset.panel)));
+    document.getElementById('quick-settings').addEventListener('click', () => setPanel('settings-panel'));
+
+    function queueMessage(content, type) {
+      pendingMessages.push({ content, type });
+      if (appendHandle) return;
+      appendHandle = requestAnimationFrame(() => {
+        const frag = document.createDocumentFragment();
+        for (const msg of pendingMessages) {
+          const div = document.createElement('div');
+          div.className = `message ${msg.type}`;
+          div.textContent = msg.content;
+          frag.appendChild(div);
+        }
+        messagesDiv.appendChild(frag);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        pendingMessages = [];
+        appendHandle = null;
+      });
+    }
+
+    function setConnectionStatus(text) {
+      connectionPill.textContent = text;
+    }
+
+    async function fetchSettings() {
+      if (!sessionId) return;
+      const res = await fetch(`/api/settings/${encodeURIComponent(sessionId)}`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to load settings');
+
+      const providers = data.providers || [];
+      for (const key of ['provider', 'fallbackProvider']) {
+        fields[key].innerHTML = providers.map(p => `<option value="${p}">${p}</option>`).join('');
+      }
+
+      const s = data.settings;
+      fields.provider.value = s.provider;
+      fields.fallbackProvider.value = s.fallbackProvider;
+      fields.model.value = s.model;
+      fields.temperature.value = s.temperature;
+      fields.systemPrompt.value = s.systemPrompt;
+      fields.memorySize.value = s.memorySize;
+      fields.maxTokens.value = s.maxTokens;
+      fields.ttsEnabled.value = String(Boolean(s.ttsEnabled));
+      fields.ttsProvider.value = s.tts?.provider || 'openai';
+      fields.ttsVoice.value = s.tts?.voice || '';
+      fields.ttsModel.value = s.tts?.model || '';
+      fields.ttsSpeed.value = s.tts?.speed ?? 1;
+      fields.sttModel.value = s.stt?.model || '';
+      fields.sttLanguage.value = s.stt?.language || '';
+      fields.sttPunctuate.value = String(Boolean(s.stt?.punctuate));
+    }
+
+    function collectSettings() {
+      return {
+        provider: fields.provider.value,
+        fallbackProvider: fields.fallbackProvider.value,
+        model: fields.model.value.trim(),
+        temperature: Number(fields.temperature.value),
+        systemPrompt: fields.systemPrompt.value.trim(),
+        memorySize: Number(fields.memorySize.value),
+        maxTokens: Number(fields.maxTokens.value),
+        ttsEnabled: fields.ttsEnabled.value === 'true',
+        tts: {
+          provider: fields.ttsProvider.value,
+          voice: fields.ttsVoice.value.trim(),
+          model: fields.ttsModel.value.trim(),
+          speed: Number(fields.ttsSpeed.value)
+        },
+        stt: {
+          model: fields.sttModel.value.trim(),
+          language: fields.sttLanguage.value.trim(),
+          punctuate: fields.sttPunctuate.value === 'true'
+        }
+      };
+    }
+
+    async function applySettings() {
+      if (!sessionId) return;
+      const response = await fetch(`/api/settings/${encodeURIComponent(sessionId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(collectSettings())
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || 'Failed to update settings');
+      queueMessage('✅ Session settings updated from Settings page.', 'system');
+    }
+
+    async function saveDefaults() {
+      if (!sessionId) return;
+      const response = await fetch(`/api/settings/${encodeURIComponent(sessionId)}/save`, { method: 'POST' });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || 'Failed to save defaults');
+      queueMessage('💾 Settings saved as defaults for this session id.', 'system');
+    }
+
+    async function withUiFeedback(fn) {
+      try {
+        await fn();
+      } catch (err) {
+        queueMessage(`⚠️ ${err.message}`, 'system');
+      }
     }
 
     function connect() {
@@ -136,52 +440,55 @@
       ws = new WebSocket(protocol + '//' + window.location.host);
 
       ws.onopen = () => {
-        console.log('Connected');
+        setConnectionStatus('Connected');
         ws.send(JSON.stringify({ type: 'init', sessionId }));
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = async (event) => {
         const data = JSON.parse(event.data);
-
         if (data.type === 'sessionId') {
           sessionId = data.sessionId;
           localStorage.setItem('sessionId', sessionId);
-          console.log('Session ID:', sessionId);
+          sessionPill.textContent = sessionId;
+          await withUiFeedback(fetchSettings);
         } else if (data.type === 'text') {
-          addMessage(data.content, 'assistant');
+          queueMessage(data.content, 'assistant');
         } else if (data.type === 'error') {
-          addMessage(data.content, 'system');
+          queueMessage(data.content, 'system');
         } else if (data.type === 'audio') {
-          // Handle audio playback
           const audio = new Audio('data:audio/mpeg;base64,' + data.buffer);
-          audio.play().catch(err => console.error('Audio playback failed:', err));
+          audio.play().catch(err => queueMessage(`Audio playback failed: ${err.message}`, 'system'));
         }
       };
 
       ws.onclose = () => {
-        console.log('Disconnected');
-        addMessage('Connection lost. Reconnecting...', 'system');
-        setTimeout(connect, 3000);
+        setConnectionStatus('Reconnecting…');
+        queueMessage('Connection lost. Reconnecting…', 'system');
+        setTimeout(connect, 2500);
       };
 
-      ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-      };
+      ws.onerror = () => setConnectionStatus('Connection Error');
     }
 
     function sendMessage() {
       const text = input.value.trim();
-      if (!text) return;
-
-      addMessage(text, 'user');
+      if (!text || ws?.readyState !== WebSocket.OPEN) return;
+      queueMessage(text, 'user');
       ws.send(JSON.stringify({ type: 'text', content: text }));
       input.value = '';
     }
 
     sendBtn.addEventListener('click', sendMessage);
-    input.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') sendMessage();
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
     });
+
+    document.getElementById('refresh-settings').addEventListener('click', () => withUiFeedback(fetchSettings));
+    document.getElementById('apply-settings').addEventListener('click', () => withUiFeedback(applySettings));
+    document.getElementById('save-settings').addEventListener('click', () => withUiFeedback(saveDefaults));
 
     connect();
   </script>
