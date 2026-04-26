@@ -235,6 +235,9 @@
     }
 
     .ghost { background: #13203a; }
+    .provider-card { border:1px solid var(--border); border-radius:12px; padding:10px; background:#0d1525; display:grid; gap:6px; }
+    .provider-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .provider-row code { background:#111a2e; padding:2px 6px; border-radius:6px; }
 
     @media (max-width: 680px) {
       #composer { grid-template-columns: 1fr; }
@@ -270,6 +273,23 @@
       <form id="settings-form" class="settings-body">
         <div class="field"><label for="provider">LLM Provider</label><select id="provider"></select></div>
         <div class="field"><label for="fallbackProvider">Fallback Provider</label><select id="fallbackProvider"></select></div>
+        <div class="field full">
+          <label>Provider Profiles</label>
+          <div class="provider-card">
+            <div class="provider-row">
+              <input id="providerProfileName" placeholder="provider-name" />
+              <input id="providerProfileBaseUrl" placeholder="https://api.example.com/v1" />
+              <input id="providerProfileApiKey" type="password" placeholder="api key" />
+            </div>
+            <div class="provider-row">
+              <input id="providerProfileDefaultModel" placeholder="default model" />
+              <input id="providerProfileModels" placeholder="models (comma separated)" />
+              <button type="button" id="provider-save" class="ghost">Save Profile</button>
+              <button type="button" id="provider-delete" class="ghost">Delete Profile</button>
+            </div>
+            <div id="provider-summary" class="status"></div>
+          </div>
+        </div>
         <div class="field"><label for="model">Model</label><input id="model" /></div>
         <div class="field"><label for="temperature">Temperature (0-2)</label><input id="temperature" type="number" step="0.1" min="0" max="2" /></div>
         <div class="field"><label for="memorySize">Memory Size (1-100)</label><input id="memorySize" type="number" min="1" max="100" /></div>
@@ -297,6 +317,7 @@
     let sessionId = localStorage.getItem('sessionId');
     let pendingMessages = [];
     let appendHandle = null;
+    let providerProfiles = [];
 
     const messagesDiv = document.getElementById('messages');
     const input = document.getElementById('input');
@@ -321,7 +342,12 @@
       ttsSpeed: document.getElementById('ttsSpeed'),
       sttModel: document.getElementById('sttModel'),
       sttLanguage: document.getElementById('sttLanguage'),
-      sttPunctuate: document.getElementById('sttPunctuate')
+      sttPunctuate: document.getElementById('sttPunctuate'),
+      providerProfileName: document.getElementById('providerProfileName'),
+      providerProfileBaseUrl: document.getElementById('providerProfileBaseUrl'),
+      providerProfileApiKey: document.getElementById('providerProfileApiKey'),
+      providerProfileDefaultModel: document.getElementById('providerProfileDefaultModel'),
+      providerProfileModels: document.getElementById('providerProfileModels')
     };
 
     const setPanel = (id) => {
@@ -354,18 +380,50 @@
       connectionPill.textContent = text;
     }
 
+    async function fetchProviders() {
+      if (!sessionId) return;
+      const res = await fetch(`/api/providers/${encodeURIComponent(sessionId)}`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to load provider profiles');
+      providerProfiles = data.providers || [];
+      const names = providerProfiles.map(p => p.name);
+      for (const key of ['provider', 'fallbackProvider']) {
+        fields[key].innerHTML = names.map(p => `<option value="${p}">${p}</option>`).join('');
+      }
+      updateProviderSummary();
+      syncProviderEditor(fields.provider.value || data.activeProvider);
+    }
+
+    function updateProviderSummary() {
+      const el = document.getElementById('provider-summary');
+      if (!providerProfiles.length) {
+        el.textContent = 'No provider profiles configured';
+        return;
+      }
+      el.innerHTML = providerProfiles.map(p => `<span class="pill">${p.name}: ${p.model || 'no model'} (${p.hasApiKey ? 'key' : 'no key'})</span>`).join(' ');
+    }
+
+    function syncProviderEditor(providerName) {
+      const profile = providerProfiles.find(p => p.name === providerName);
+      if (!profile) return;
+      fields.providerProfileName.value = profile.name;
+      fields.providerProfileBaseUrl.value = profile.baseUrl || '';
+      fields.providerProfileApiKey.value = '';
+      fields.providerProfileDefaultModel.value = profile.model || '';
+      fields.providerProfileModels.value = (profile.models || []).join(', ');
+      if (profile.models?.length && !profile.models.includes(fields.model.value)) {
+        fields.model.value = profile.model || profile.models[0] || fields.model.value;
+      }
+    }
+
     async function fetchSettings() {
       if (!sessionId) return;
       const res = await fetch(`/api/settings/${encodeURIComponent(sessionId)}`);
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to load settings');
 
-      const providers = data.providers || [];
-      for (const key of ['provider', 'fallbackProvider']) {
-        fields[key].innerHTML = providers.map(p => `<option value="${p}">${p}</option>`).join('');
-      }
-
       const s = data.settings;
+      await fetchProviders();
       fields.provider.value = s.provider;
       fields.fallbackProvider.value = s.fallbackProvider;
       fields.model.value = s.model;
@@ -381,6 +439,7 @@
       fields.sttModel.value = s.stt?.model || '';
       fields.sttLanguage.value = s.stt?.language || '';
       fields.sttPunctuate.value = String(Boolean(s.stt?.punctuate));
+      syncProviderEditor(s.provider);
     }
 
     function collectSettings() {
@@ -405,6 +464,42 @@
           punctuate: fields.sttPunctuate.value === 'true'
         }
       };
+    }
+
+    async function saveProviderProfile() {
+      if (!sessionId) return;
+      const payload = {
+        name: fields.providerProfileName.value.trim(),
+        baseUrl: fields.providerProfileBaseUrl.value.trim(),
+        apiKey: fields.providerProfileApiKey.value.trim(),
+        defaultModel: fields.providerProfileDefaultModel.value.trim(),
+        models: fields.providerProfileModels.value.split(',').map(v => v.trim()).filter(Boolean)
+      };
+      if (!payload.name || !payload.baseUrl || !payload.apiKey) {
+        throw new Error('Provider name, base URL and API key are required to save a profile.');
+      }
+      const response = await fetch(`/api/providers/${encodeURIComponent(sessionId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || 'Failed to save provider profile');
+      queueMessage(`🔌 Provider profile "${payload.name}" saved.`, 'system');
+      await fetchSettings();
+      fields.provider.value = payload.name;
+      fields.providerProfileApiKey.value = '';
+    }
+
+    async function deleteProviderProfile() {
+      if (!sessionId) return;
+      const name = fields.providerProfileName.value.trim();
+      if (!name) throw new Error('Choose or enter a provider profile name first.');
+      const response = await fetch(`/api/providers/${encodeURIComponent(sessionId)}/${encodeURIComponent(name)}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || 'Failed to delete provider profile');
+      queueMessage(`🗑️ Provider profile "${name}" removed.`, 'system');
+      await fetchSettings();
     }
 
     async function applySettings() {
@@ -489,6 +584,9 @@
     document.getElementById('refresh-settings').addEventListener('click', () => withUiFeedback(fetchSettings));
     document.getElementById('apply-settings').addEventListener('click', () => withUiFeedback(applySettings));
     document.getElementById('save-settings').addEventListener('click', () => withUiFeedback(saveDefaults));
+    document.getElementById('provider-save').addEventListener('click', () => withUiFeedback(saveProviderProfile));
+    document.getElementById('provider-delete').addEventListener('click', () => withUiFeedback(deleteProviderProfile));
+    fields.provider.addEventListener('change', () => syncProviderEditor(fields.provider.value));
 
     connect();
   </script>
