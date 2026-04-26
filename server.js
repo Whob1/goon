@@ -248,6 +248,15 @@ function getResolvedProviders(session) {
   return { ...LLM_PROVIDERS, ...(session.params.customProviders || {}) };
 }
 
+function normalizeSessionParams(session) {
+  session.params = session.params || {};
+  session.params.tts = { ...DEFAULT_TTS_CONFIG, ...(session.params.tts || {}) };
+  session.params.stt = { ...DEFAULT_STT_CONFIG, ...(session.params.stt || {}) };
+  session.params.customProviders = session.params.customProviders || {};
+  session.params.customModels = session.params.customModels || {};
+  return session;
+}
+
 // ============================================================================
 // REDIS CLIENT
 // ============================================================================
@@ -312,7 +321,7 @@ async function loadSession(sessionId) {
     try {
       const data = await redis.get(`session:${sessionId}`);
       if (data) {
-        const session = JSON.parse(data);
+        const session = normalizeSessionParams(JSON.parse(data));
         session.lastActivity = Date.now();
         sessions.set(sessionId, session);
         logger.info('Session loaded from Redis', { sessionId });
@@ -345,10 +354,7 @@ async function loadSession(sessionId) {
   if (Object.keys(defaults).length > 0) {
     session.params = { ...session.params, ...defaults };
   }
-  session.params.tts = { ...DEFAULT_TTS_CONFIG, ...(session.params.tts || {}) };
-  session.params.stt = { ...DEFAULT_STT_CONFIG, ...(session.params.stt || {}) };
-  session.params.customProviders = session.params.customProviders || {};
-  session.params.customModels = session.params.customModels || {};
+  normalizeSessionParams(session);
 
   return session;
 }
