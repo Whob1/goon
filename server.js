@@ -259,6 +259,16 @@ function normalizeSessionParams(session) {
 
 function getSerializableSettings(session) {
   normalizeSessionParams(session);
+  const redactedCustomProviders = Object.fromEntries(
+    Object.entries(session.params.customProviders || {}).map(([name, provider]) => [
+      name,
+      {
+        ...provider,
+        apiKey: provider?.apiKey ? '***redacted***' : ''
+      }
+    ])
+  );
+
   return {
     provider: session.params.provider,
     model: session.params.model,
@@ -271,7 +281,7 @@ function getSerializableSettings(session) {
     voiceId: session.params.voiceId || '',
     tts: session.params.tts,
     stt: session.params.stt,
-    customProviders: session.params.customProviders,
+    customProviders: redactedCustomProviders,
     customModels: session.params.customModels
   };
 }
@@ -279,12 +289,16 @@ function getSerializableSettings(session) {
 function applySettingsPatch(session, updates = {}) {
   normalizeSessionParams(session);
   const resolvedProviders = getResolvedProviders(session);
+  const startingProvider = normalizeProviderName(session.params.provider);
+  const startingModel = String(session.params.model || '').trim();
+  let providerChanged = false;
 
   if (typeof updates.provider === 'string') {
     const nextProvider = normalizeProviderName(updates.provider);
     if (!resolvedProviders[nextProvider]) {
       throw new Error(`Unknown provider "${nextProvider}"`);
     }
+    providerChanged = nextProvider !== startingProvider;
     session.params.provider = nextProvider;
     session.params.model = session.params.customModels?.[nextProvider] || resolvedProviders[nextProvider].model || session.params.model;
   }
@@ -298,8 +312,11 @@ function applySettingsPatch(session, updates = {}) {
   }
 
   if (typeof updates.model === 'string' && updates.model.trim()) {
-    session.params.model = updates.model.trim();
-    session.params.customModels[normalizeProviderName(session.params.provider)] = session.params.model;
+    const nextModel = updates.model.trim();
+    if (!providerChanged || nextModel !== startingModel) {
+      session.params.model = nextModel;
+      session.params.customModels[normalizeProviderName(session.params.provider)] = session.params.model;
+    }
   }
 
   if (updates.temperature !== undefined) {
