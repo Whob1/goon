@@ -206,15 +206,56 @@ const MAX_MESSAGE_LENGTH = 10000;
 const LLM_PROVIDERS = {
   openrouter: {
     apiKey: process.env.OPENROUTER_API_KEY,
-    model: process.env.OPENROUTER_MODEL || 'openai/gpt-3.5-turbo',
-    endpoint: 'https://openrouter.ai/api/v1/chat/completions'
+    model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+    headers: {
+      'HTTP-Referer': 'https://github.com/goon-voiceflow',
+      'X-Title': 'Goon VoiceFlow'
+    }
   },
   mistral: {
     apiKey: process.env.MISTRAL_API_KEY,
     model: process.env.MISTRAL_MODEL || 'mistral-small-latest',
     endpoint: 'https://api.mistral.ai/v1/chat/completions'
+  },
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY,
+    model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+    endpoint: `${process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'}/chat/completions`
   }
 };
+
+const DEFAULT_TTS_CONFIG = {
+  provider: process.env.TTS_PROVIDER || 'openai',
+  model: process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts',
+  voice: process.env.OPENAI_TTS_VOICE || 'alloy',
+  format: process.env.TTS_AUDIO_FORMAT || 'mp3',
+  speed: Number(process.env.TTS_SPEED || '1.0')
+};
+
+const DEFAULT_STT_CONFIG = {
+  provider: process.env.STT_PROVIDER || 'deepgram',
+  model: process.env.DEEPGRAM_MODEL || 'nova-3',
+  language: process.env.DEEPGRAM_LANGUAGE || 'en',
+  punctuate: process.env.DEEPGRAM_PUNCTUATE !== 'false'
+};
+
+function normalizeProviderName(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+function getResolvedProviders(session) {
+  return { ...LLM_PROVIDERS, ...(session.params.customProviders || {}) };
+}
+
+function normalizeSessionParams(session) {
+  session.params = session.params || {};
+  session.params.tts = { ...DEFAULT_TTS_CONFIG, ...(session.params.tts || {}) };
+  session.params.stt = { ...DEFAULT_STT_CONFIG, ...(session.params.stt || {}) };
+  session.params.customProviders = session.params.customProviders || {};
+  session.params.customModels = session.params.customModels || {};
+  return session;
+}
 
 // ============================================================================
 // REDIS CLIENT
@@ -246,12 +287,17 @@ function createSession(sessionId, platform = 'webui') {
     params: {
       provider: 'openrouter',
       model: LLM_PROVIDERS.openrouter.model,
+      fallbackProvider: process.env.DEFAULT_FALLBACK_PROVIDER || 'mistral',
       temperature: 0.7,
       systemPrompt: 'You are a helpful AI assistant named Goon.',
       memorySize: 10,
       maxTokens: 1000,
       ttsEnabled: false,
-      voiceId: process.env.ELEVENLABS_VOICE_ID || ''
+      voiceId: process.env.ELEVENLABS_VOICE_ID || '',
+      tts: { ...DEFAULT_TTS_CONFIG },
+      stt: { ...DEFAULT_STT_CONFIG },
+      customProviders: {},
+      customModels: {}
     },
     createdAt: Date.now(),
     lastActivity: Date.now()
@@ -275,7 +321,7 @@ async function loadSession(sessionId) {
     try {
       const data = await redis.get(`session:${sessionId}`);
       if (data) {
-        const session = JSON.parse(data);
+        const session = normalizeSessionParams(JSON.parse(data));
         session.lastActivity = Date.now();
         sessions.set(sessionId, session);
         logger.info('Session loaded from Redis', { sessionId });
@@ -308,6 +354,7 @@ async function loadSession(sessionId) {
   if (Object.keys(defaults).length > 0) {
     session.params = { ...session.params, ...defaults };
   }
+  normalizeSessionParams(session);
 
   return session;
 }
@@ -362,16 +409,18 @@ async function saveUserDefaults(sessionId, params) {
 // LLM INTEGRATION
 // ============================================================================
 async function callLLM(session, userMessage) {
-  const { provider, model, temperature, systemPrompt, maxTokens } = session.params;
+  const { provider, temperature, systemPrompt, maxTokens, fallbackProvider } = session.params;
+  const resolvedProviders = getResolvedProviders(session);
+  const normalizedProvider = normalizeProviderName(provider);
+  const selectedProvider = resolvedProviders[normalizedProvider];
+  const model = session.params.customModels?.[normalizedProvider] || session.params.model || selectedProvider?.model;
 
-  if (!LLM_PROVIDERS[provider]) {
+  if (!selectedProvider) {
     logger.error('Invalid LLM provider', { provider, sessionId: session.id });
     throw new Error(`Invalid provider: ${provider}`);
   }
 
-  const config = LLM_PROVIDERS[provider];
-
-  if (!config.apiKey) {
+  if (!selectedProvider.apiKey) {
     logger.error('Provider API key not configured', { provider, sessionId: session.id });
     throw new Error(`${provider} API key not configured`);
   }
@@ -392,14 +441,9 @@ async function callLLM(session, userMessage) {
 
   const headers = {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${config.apiKey}`
+    'Authorization': `Bearer ${selectedProvider.apiKey}`,
+    ...(selectedProvider.headers || {})
   };
-
-  // Add OpenRouter-specific headers
-  if (provider === 'openrouter') {
-    headers['HTTP-Referer'] = 'https://github.com/goon-voiceflow';
-    headers['X-Title'] = 'Goon VoiceFlow';
-  }
 
   logger.info('LLM request initiated', {
     sessionId: session.id,
@@ -409,15 +453,15 @@ async function callLLM(session, userMessage) {
     temperature
   });
 
+  const startTime = Date.now();
   try {
-    const startTime = Date.now();
-    const response = await axios.post(config.endpoint, requestBody, {
+    const response = await axios.post(selectedProvider.endpoint, requestBody, {
       headers,
       timeout: 30000
     });
 
     const duration = Date.now() - startTime;
-    const assistantMessage = response.data.choices[0].message.content;
+    const assistantMessage = response.data?.choices?.[0]?.message?.content || '';
 
     logger.info('LLM request successful', {
       sessionId: session.id,
@@ -444,16 +488,17 @@ async function callLLM(session, userMessage) {
     });
 
     // Try fallback provider if primary fails
-    if (provider === 'openrouter' && LLM_PROVIDERS.mistral.apiKey) {
-      logger.info('Attempting fallback to Mistral', { sessionId: session.id });
+    const normalizedFallback = normalizeProviderName(fallbackProvider);
+    if (normalizedFallback && normalizedFallback !== normalizedProvider && resolvedProviders[normalizedFallback]?.apiKey) {
+      logger.info('Attempting fallback provider', { sessionId: session.id, fallbackProvider: normalizedFallback });
 
       try {
         const fallbackSession = {
           ...session,
           params: {
             ...session.params,
-            provider: 'mistral',
-            model: LLM_PROVIDERS.mistral.model
+            provider: normalizedFallback,
+            model: session.params.customModels?.[normalizedFallback] || resolvedProviders[normalizedFallback].model
           }
         };
 
@@ -474,44 +519,73 @@ async function callLLM(session, userMessage) {
 // ============================================================================
 // VOICE SERVICES
 // ============================================================================
-async function textToSpeech(text, voiceId) {
-  if (!process.env.ELEVENLABS_API_KEY) {
-    throw new Error('ElevenLabs API key not configured');
-  }
-
-  if (!voiceId) {
-    throw new Error('Voice ID not configured');
-  }
+async function textToSpeech(session, text) {
+  const ttsConfig = { ...DEFAULT_TTS_CONFIG, ...(session.params.tts || {}) };
+  const provider = normalizeProviderName(ttsConfig.provider);
+  const voiceId = ttsConfig.voice || session.params.voiceId;
 
   const validation = validateInput(text, 'string', { min: 1, max: 5000 });
   if (!validation.valid) {
     throw new Error(validation.error);
   }
 
-  logger.info('TTS request initiated', { textLength: text.length, voiceId });
+  logger.info('TTS request initiated', { textLength: text.length, provider, voiceId, model: ttsConfig.model });
 
   try {
     const startTime = Date.now();
-    const response = await axios.post(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      {
-        text: text,
-        model_id: 'eleven_monolingual_v1',
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.5
-        }
-      },
-      {
-        headers: {
-          'Accept': 'audio/mpeg',
-          'Content-Type': 'application/json',
-          'xi-api-key': process.env.ELEVENLABS_API_KEY
-        },
-        responseType: 'arraybuffer',
-        timeout: 30000
+    let response;
+    if (provider === 'openai') {
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY not configured');
       }
-    );
+      response = await axios.post(
+        `${process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'}/audio/speech`,
+        {
+          model: ttsConfig.model,
+          voice: voiceId || 'alloy',
+          input: text,
+          format: ttsConfig.format || 'mp3',
+          speed: ttsConfig.speed || 1.0
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          responseType: 'arraybuffer',
+          timeout: 30000
+        }
+      );
+    } else if (provider === 'elevenlabs') {
+      if (!process.env.ELEVENLABS_API_KEY) {
+        throw new Error('ElevenLabs API key not configured');
+      }
+      if (!voiceId) {
+        throw new Error('Voice ID not configured');
+      }
+      response = await axios.post(
+        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+        {
+          text: text,
+          model_id: ttsConfig.model || 'eleven_multilingual_v2',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.5
+          }
+        },
+        {
+          headers: {
+            'Accept': 'audio/mpeg',
+            'Content-Type': 'application/json',
+            'xi-api-key': process.env.ELEVENLABS_API_KEY
+          },
+          responseType: 'arraybuffer',
+          timeout: 30000
+        }
+      );
+    } else {
+      throw new Error(`Unsupported TTS provider: ${provider}`);
+    }
 
     const duration = Date.now() - startTime;
     const audioBuffer = Buffer.from(response.data);
@@ -534,7 +608,11 @@ async function textToSpeech(text, voiceId) {
   }
 }
 
-async function speechToText(audioBuffer) {
+async function speechToText(session, audioBuffer) {
+  const sttConfig = { ...DEFAULT_STT_CONFIG, ...(session.params.stt || {}) };
+  if (normalizeProviderName(sttConfig.provider) !== 'deepgram') {
+    throw new Error(`Unsupported STT provider: ${sttConfig.provider}`);
+  }
   if (!process.env.DEEPGRAM_API_KEY) {
     throw new Error('Deepgram API key not configured');
   }
@@ -544,12 +622,12 @@ async function speechToText(audioBuffer) {
     throw new Error(validation.error);
   }
 
-  logger.info('STT request initiated', { audioSize: audioBuffer.length });
+  logger.info('STT request initiated', { audioSize: audioBuffer.length, model: sttConfig.model });
 
   try {
     const startTime = Date.now();
     const response = await axios.post(
-      'https://api.deepgram.com/v1/listen',
+      `https://api.deepgram.com/v1/listen?model=${encodeURIComponent(sttConfig.model)}&language=${encodeURIComponent(sttConfig.language)}&punctuate=${sttConfig.punctuate ? 'true' : 'false'}&smart_format=true`,
       audioBuffer,
       {
         headers: {
@@ -653,14 +731,21 @@ async function handleCommand(session, input) {
 /help - Show this help message
 /reset - Clear conversation history
 /settings - Show current settings
-/provider <openrouter|mistral> - Switch LLM provider
+/provider <name> - Switch LLM provider (built-in or custom)
 /model <model-name> - Set model name
+/modelset <provider> <model-name> - Save model per provider
+/providers - List configured providers and defaults
+/provideradd <name> <baseUrl> <apiKey> [defaultModel] - Add OpenAI-compatible provider
 /temperature <0.0-2.0> - Set temperature
 /systemprompt <prompt> - Set system prompt
 /memory <number> - Set conversation memory size
 /maxtokens <number> - Set max tokens
 /tts <on|off> - Toggle text-to-speech
-/voiceid <id> - Set ElevenLabs voice ID
+/ttsprovider <openai|elevenlabs> - Set TTS provider
+/ttsvoice <voice> - Set TTS voice
+/ttsmodel <model> - Set TTS model
+/sttmodel <model> - Set STT model (Deepgram)
+/voiceid <id> - Set ElevenLabs voice ID (legacy alias)
 /save - Save current settings as defaults
 /status - Show session status`;
 
@@ -678,25 +763,80 @@ System Prompt: ${session.params.systemPrompt}
 Memory Size: ${session.params.memorySize}
 Max Tokens: ${session.params.maxTokens}
 TTS Enabled: ${session.params.ttsEnabled}
-Voice ID: ${session.params.voiceId || 'not set'}`;
+Voice ID: ${session.params.voiceId || 'not set'}
+TTS Provider: ${session.params.tts?.provider}
+TTS Voice: ${session.params.tts?.voice}
+TTS Model: ${session.params.tts?.model}
+STT Provider: ${session.params.stt?.provider}
+STT Model: ${session.params.stt?.model}
+Fallback Provider: ${session.params.fallbackProvider}`;
 
     case '/provider':
-      const validation = validateInput(args, 'enum', { allowed: ['openrouter', 'mistral'] });
-      if (!validation.valid) {
-        return 'Usage: /provider <openrouter|mistral>';
+      const providerName = normalizeProviderName(args);
+      const providers = getResolvedProviders(session);
+      if (!providers[providerName]) {
+        return `Unknown provider "${providerName}". Use /providers to see available providers.`;
       }
-      session.params.provider = args;
-      session.params.model = LLM_PROVIDERS[args].model;
+      session.params.provider = providerName;
+      session.params.model = session.params.customModels?.[providerName] || providers[providerName].model;
       await saveSession(session);
-      return `Provider switched to ${args} with model ${session.params.model}`;
+      return `Provider switched to ${providerName} with model ${session.params.model}`;
 
     case '/model':
       if (!args) {
         return 'Usage: /model <model-name>';
       }
       session.params.model = args;
+      session.params.customModels[normalizeProviderName(session.params.provider)] = args;
       await saveSession(session);
       return `Model set to ${args}`;
+
+    case '/modelset': {
+      const modelParts = args.split(' ');
+      const modelProvider = normalizeProviderName(modelParts.shift());
+      const modelName = modelParts.join(' ').trim();
+      if (!modelProvider || !modelName) {
+        return 'Usage: /modelset <provider> <model-name>';
+      }
+      session.params.customModels[modelProvider] = modelName;
+      if (modelProvider === normalizeProviderName(session.params.provider)) {
+        session.params.model = modelName;
+      }
+      await saveSession(session);
+      return `Default model for provider "${modelProvider}" set to "${modelName}".`;
+    }
+
+    case '/providers': {
+      const providers = getResolvedProviders(session);
+      const lines = Object.entries(providers).map(([name, config]) => {
+        const defaultModel = session.params.customModels?.[name] || config.model || 'not set';
+        const auth = config.apiKey ? 'configured' : 'missing key';
+        return `- ${name}: model=${defaultModel}, endpoint=${config.endpoint}, auth=${auth}`;
+      });
+      return `Configured providers:\n${lines.join('\n')}`;
+    }
+
+    case '/provideradd': {
+      const providerParts = args.split(' ');
+      const providerName = normalizeProviderName(providerParts.shift());
+      const baseUrl = providerParts.shift();
+      const apiKey = providerParts.shift();
+      const defaultModel = providerParts.join(' ').trim();
+      if (!providerName || !baseUrl || !apiKey) {
+        return 'Usage: /provideradd <name> <baseUrl> <apiKey> [defaultModel]';
+      }
+      const endpoint = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
+      session.params.customProviders[providerName] = {
+        endpoint,
+        apiKey,
+        model: defaultModel || session.params.customModels?.[providerName] || 'gpt-4o-mini'
+      };
+      if (defaultModel) {
+        session.params.customModels[providerName] = defaultModel;
+      }
+      await saveSession(session);
+      return `Custom provider "${providerName}" saved with endpoint ${endpoint}.`;
+    }
 
     case '/temperature':
       const tempValidation = validateInput(parseFloat(args), 'number', { min: 0, max: 2 });
@@ -747,8 +887,42 @@ Voice ID: ${session.params.voiceId || 'not set'}`;
         return 'Usage: /voiceid <id>';
       }
       session.params.voiceId = args;
+      session.params.tts.voice = args;
       await saveSession(session);
       return `Voice ID set to ${args}`;
+
+    case '/ttsprovider':
+      if (!['openai', 'elevenlabs'].includes(normalizeProviderName(args))) {
+        return 'Usage: /ttsprovider <openai|elevenlabs>';
+      }
+      session.params.tts.provider = normalizeProviderName(args);
+      await saveSession(session);
+      return `TTS provider set to ${session.params.tts.provider}`;
+
+    case '/ttsvoice':
+      if (!args) {
+        return 'Usage: /ttsvoice <voice>';
+      }
+      session.params.tts.voice = args;
+      session.params.voiceId = args;
+      await saveSession(session);
+      return `TTS voice set to ${args}`;
+
+    case '/ttsmodel':
+      if (!args) {
+        return 'Usage: /ttsmodel <model>';
+      }
+      session.params.tts.model = args;
+      await saveSession(session);
+      return `TTS model set to ${args}`;
+
+    case '/sttmodel':
+      if (!args) {
+        return 'Usage: /sttmodel <model>';
+      }
+      session.params.stt.model = args;
+      await saveSession(session);
+      return `STT model set to ${args}`;
 
     case '/save':
       const result = await saveUserDefaults(session.id, session.params);
@@ -815,6 +989,35 @@ app.get('/metrics', (req, res) => {
   };
   res.json(metricsData);
   logger.debug('Metrics requested', metricsData);
+});
+
+app.get('/capabilities', (req, res) => {
+  const providers = Object.entries(LLM_PROVIDERS).reduce((acc, [name, config]) => {
+    acc[name] = {
+      configured: Boolean(config.apiKey),
+      endpoint: config.endpoint,
+      defaultModel: config.model
+    };
+    return acc;
+  }, {});
+  res.json({
+    llmProviders: providers,
+    tts: {
+      openai: {
+        configured: Boolean(process.env.OPENAI_API_KEY),
+        defaultModel: DEFAULT_TTS_CONFIG.model
+      },
+      elevenlabs: {
+        configured: Boolean(process.env.ELEVENLABS_API_KEY)
+      }
+    },
+    stt: {
+      deepgram: {
+        configured: Boolean(process.env.DEEPGRAM_API_KEY),
+        defaultModel: DEFAULT_STT_CONFIG.model
+      }
+    }
+  });
 });
 
 // Package download endpoint
@@ -977,10 +1180,10 @@ wss.on('connection', (ws) => {
         }));
 
         // Send TTS audio if enabled
-        if (session.params.ttsEnabled && session.params.voiceId && session.state !== 'consent' && session.state !== 'terminal_unhappy') {
+        if (session.params.ttsEnabled && session.state !== 'consent' && session.state !== 'terminal_unhappy') {
           try {
             metrics.ttsCalls++;
-            const audioBuffer = await textToSpeech(response, session.params.voiceId);
+            const audioBuffer = await textToSpeech(session, response);
             ws.send(JSON.stringify({
               type: 'audio',
               buffer: audioBuffer.toString('base64')
@@ -997,7 +1200,7 @@ wss.on('connection', (ws) => {
         try {
           metrics.sttCalls++;
           const audioBuffer = Buffer.from(data.buffer, 'base64');
-          const transcript = await speechToText(audioBuffer);
+          const transcript = await speechToText(session, audioBuffer);
 
           const response = await handleInput(session, transcript);
 
@@ -1007,10 +1210,10 @@ wss.on('connection', (ws) => {
           }));
 
           // Send TTS audio if enabled
-          if (session.params.ttsEnabled && session.params.voiceId) {
+          if (session.params.ttsEnabled) {
             try {
               metrics.ttsCalls++;
-              const audioBuffer = await textToSpeech(response, session.params.voiceId);
+              const audioBuffer = await textToSpeech(session, response);
               ws.send(JSON.stringify({
                 type: 'audio',
                 buffer: audioBuffer.toString('base64')
@@ -1103,10 +1306,10 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
       await ctx.reply(response);
 
       // Send voice if TTS enabled
-      if (session.params.ttsEnabled && session.params.voiceId && session.state !== 'consent' && session.state !== 'terminal_unhappy') {
+      if (session.params.ttsEnabled && session.state !== 'consent' && session.state !== 'terminal_unhappy') {
         try {
           metrics.ttsCalls++;
-          const audioBuffer = await textToSpeech(response, session.params.voiceId);
+          const audioBuffer = await textToSpeech(session, response);
           await ctx.replyWithVoice({ source: audioBuffer });
         } catch (err) {
           logger.error('TTS failed for Telegram', { sessionId, error: err.message });
@@ -1145,7 +1348,7 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
 
       // Transcribe
       metrics.sttCalls++;
-      const transcript = await speechToText(audioBuffer);
+      const transcript = await speechToText(session, audioBuffer);
 
       // Process
       const textResponse = await handleInput(session, transcript);
@@ -1153,10 +1356,10 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
       await ctx.reply(`[You said: ${transcript}]\n\n${textResponse}`);
 
       // Send voice if TTS enabled
-      if (session.params.ttsEnabled && session.params.voiceId) {
+      if (session.params.ttsEnabled) {
         try {
           metrics.ttsCalls++;
-          const audioBuffer = await textToSpeech(textResponse, session.params.voiceId);
+          const audioBuffer = await textToSpeech(session, textResponse);
           await ctx.replyWithVoice({ source: audioBuffer });
         } catch (err) {
           logger.error('TTS failed for Telegram voice', { sessionId, error: err.message });

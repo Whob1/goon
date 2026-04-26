@@ -1,99 +1,130 @@
 # Goon VoiceFlow - Production-Ready Conversational AI Agent
 
-A sophisticated, multi-platform conversational AI agent with voice capabilities, multiple LLM provider support, and enterprise-grade reliability features.
+A multi-platform conversational AI agent with robust OpenAI-compatible LLM support, per-provider model profiles, OpenAI + ElevenLabs TTS, and Deepgram STT.
+
+## What’s New (April 2026 refresh)
+
+- **OpenAI-compatible LLM architecture**
+  - Built-in providers: `openrouter`, `mistral`, `openai`
+  - Runtime command to add **custom OpenAI-compatible providers** (`/provideradd`)
+  - Per-provider model pinning (`/modelset`) and active provider switching (`/provider`)
+  - Configurable fallback provider (`fallbackProvider` in session settings)
+- **Modern OpenAI TTS integration**
+  - Uses OpenAI `audio/speech` with configurable model/voice/format/speed
+  - Default model: `gpt-4o-mini-tts`
+  - Still supports ElevenLabs as an alternate provider
+- **Deepgram STT upgrades**
+  - Deepgram `/v1/listen` with configurable model (default `nova-3`), language, punctuation
+- **Capability visibility**
+  - New `/capabilities` HTTP endpoint for runtime provider readiness
 
 ## Features
 
 ### 🎯 Multi-Platform Support
-- **WebSocket WebUI** - Modern browser-based interface with real-time chat
-- **Telegram Integration** - Full Telegram bot support with voice messages
-- **Unified Session Management** - Seamless user experience across platforms
+- **WebSocket WebUI** with real-time chat + voice
+- **Telegram Bot** with text and voice messages
+- Unified session lifecycle and consent handling
 
-### 🧠 Intelligent LLM Provider System
-- **Primary Provider**: OpenRouter (access to 400+ models)
-- **Automatic Fallback**: Mistral AI with intelligent failover
-- **Dynamic Switching**: Change models mid-conversation
-- **Fine-Grained Control**: Temperature, system prompt, memory customization
+### 🧠 LLM Routing + Custom Provider Support
+- Built-in LLM providers with defaults from environment variables
+- Add unlimited custom OpenAI-compatible providers at runtime
+- Save custom provider models per session/user (`/save`)
+- Automatic fallback to a secondary provider when primary fails
 
-### 🎙️ Voice Capabilities
-- **Text-to-Speech**: ElevenLabs integration
-- **Speech-to-Text**: Deepgram Nova-2 transcription
-- **Dual Platform**: Voice on Telegram and WebUI
+### 🎙️ Speech Stack
+- **TTS**: OpenAI Audio Speech + ElevenLabs
+- **STT**: Deepgram (pre-recorded audio transcription)
 
-### 🔒 Security & Reliability
-- **Rate Limiting**: 100 requests/minute per session
-- **Input Validation**: Comprehensive validation of all commands
-- **Error Recovery**: Graceful shutdown and resource cleanup
-- **Structured Logging**: JSON logs with request tracking
+### 🔒 Reliability
+- Input validation and rate limiting
+- Graceful error handling and structured logs
+- Redis-backed session/default persistence (optional)
 
 ### 📊 Observability
-- `/health` endpoint for system monitoring
-- `/metrics` endpoint for real-time metrics
-- Structured JSON logging to `logs/app.log` and `logs/error.log`
-- Request latency and performance tracking
+- `/health` for service checks
+- `/metrics` for counters and uptime
+- `/capabilities` for provider readiness matrix
 
 ## Quick Start
 
 ```bash
-# Install
 npm install
-
-# Configure
-cp .env.example .env  # Add your API keys
-
-# Run
 npm start
 ```
 
-Visit `http://localhost:3000`
+Open `http://localhost:3000`.
 
-## Configuration
-
-Set these environment variables in `.env`:
+## Environment Variables
 
 ```bash
-# At least one LLM provider required
-OPENROUTER_API_KEY=your_key
-OPENROUTER_MODEL=anthropic/claude-3.5-sonnet
-MISTRAL_API_KEY=your_key
-
-# Optional but recommended
-REDIS_URL=redis://localhost:6379
-TELEGRAM_BOT_TOKEN=your_token
-ELEVENLABS_API_KEY=your_key
-DEEPGRAM_API_KEY=your_key
-
-# Server config
+# Core
 PORT=3000
 NODE_ENV=production
+SESSION_TIMEOUT_MINUTES=60
+REDIS_URL=redis://localhost:6379
+TELEGRAM_BOT_TOKEN=...
+
+# Built-in LLM providers
+OPENROUTER_API_KEY=...
+OPENROUTER_MODEL=openai/gpt-4o-mini
+MISTRAL_API_KEY=...
+MISTRAL_MODEL=mistral-small-latest
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-4.1-mini
+OPENAI_BASE_URL=https://api.openai.com/v1
+DEFAULT_FALLBACK_PROVIDER=mistral
+
+# TTS defaults
+TTS_PROVIDER=openai
+OPENAI_TTS_MODEL=gpt-4o-mini-tts
+OPENAI_TTS_VOICE=alloy
+TTS_AUDIO_FORMAT=mp3
+TTS_SPEED=1.0
+ELEVENLABS_API_KEY=...
+ELEVENLABS_VOICE_ID=...
+
+# STT defaults
+STT_PROVIDER=deepgram
+DEEPGRAM_API_KEY=...
+DEEPGRAM_MODEL=nova-3
+DEEPGRAM_LANGUAGE=en
+DEEPGRAM_PUNCTUATE=true
 ```
 
-## Commands
+## Runtime Commands
 
-- `/settings` - View configuration
-- `/provider <openrouter|mistral>` - Switch AI provider
-- `/model <name>` - Change model
-- `/temp <0-2>` - Set creativity level
-- `/system <prompt>` - Custom personality
-- `/save` - Save your settings
-- `/help` - List all commands
+- `/help` - show commands
+- `/settings` - show active session configuration
+- `/provider <name>` - switch active LLM provider
+- `/providers` - list available built-in + custom providers
+- `/provideradd <name> <baseUrl> <apiKey> [defaultModel]` - add custom OpenAI-compatible provider
+- `/model <model-name>` - set model for current provider
+- `/modelset <provider> <model-name>` - persist a model for a specific provider
+- `/temperature <0.0-2.0>`
+- `/systemprompt <prompt>`
+- `/memory <1-100>`
+- `/maxtokens <100-4000>`
+- `/tts <on|off>`
+- `/ttsprovider <openai|elevenlabs>`
+- `/ttsvoice <voice>`
+- `/ttsmodel <model>`
+- `/sttmodel <model>`
+- `/voiceid <id>` (legacy alias for ElevenLabs voice)
+- `/save` - save session settings as defaults
+- `/status`
+- `/reset`
 
 ## Monitoring
 
 ```bash
-# Health check
 curl http://localhost:3000/health
-
-# Metrics
 curl http://localhost:3000/metrics
-
-# Logs
-tail -f logs/app.log
+curl http://localhost:3000/capabilities
 ```
 
-## Documentation
+## Notes on API freshness
 
-See `CLAUDE.md` for detailed development guide.
+This implementation was refreshed against OpenAI and Deepgram docs current as of **April 26, 2026**, including OpenAI Audio Speech (`/v1/audio/speech`, `gpt-4o-mini-tts`) and Deepgram STT (`/v1/listen`, `nova-3`).
 
 ## License
 
