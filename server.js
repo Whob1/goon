@@ -244,6 +244,37 @@ function normalizeProviderName(name) {
   return String(name || '').trim().toLowerCase();
 }
 
+function normalizeModelList(models = []) {
+  const arr = Array.isArray(models) ? models : String(models || '').split(',');
+  const deduped = [];
+  for (const model of arr) {
+    const value = String(model || '').trim();
+    if (value && !deduped.includes(value)) deduped.push(value);
+  }
+  return deduped;
+}
+
+function toProviderEndpoint(baseUrl) {
+  const normalized = String(baseUrl || '').trim().replace(/\/$/, '');
+  return `${normalized}/chat/completions`;
+}
+
+function serializeProvidersForClient(session) {
+  const providers = getResolvedProviders(session);
+  const currentProvider = normalizeProviderName(session.params.provider);
+
+  return Object.entries(providers).map(([name, config]) => ({
+    name,
+    builtIn: Object.prototype.hasOwnProperty.call(LLM_PROVIDERS, name),
+    endpoint: config.endpoint,
+    baseUrl: config.baseUrl || String(config.endpoint || '').replace(/\/chat\/completions\/?$/, ''),
+    hasApiKey: Boolean(config.apiKey),
+    model: session.params.customModels?.[name] || config.model || '',
+    models: normalizeModelList(config.models || [session.params.customModels?.[name] || config.model].filter(Boolean)),
+    isActive: name === currentProvider
+  }));
+}
+
 function getResolvedProviders(session) {
   return { ...LLM_PROVIDERS, ...(session.params.customProviders || {}) };
 }
@@ -254,6 +285,23 @@ function normalizeSessionParams(session) {
   session.params.stt = { ...DEFAULT_STT_CONFIG, ...(session.params.stt || {}) };
   session.params.customProviders = session.params.customProviders || {};
   session.params.customModels = session.params.customModels || {};
+
+  for (const [name, cfg] of Object.entries(session.params.customProviders)) {
+    const providerName = normalizeProviderName(name);
+    const endpoint = cfg.endpoint || toProviderEndpoint(cfg.baseUrl);
+    session.params.customProviders[providerName] = {
+      ...cfg,
+      endpoint,
+      baseUrl: cfg.baseUrl || String(endpoint).replace(/\/chat\/completions\/?$/, ''),
+      apiKey: String(cfg.apiKey || '').trim(),
+      model: String(cfg.model || '').trim() || session.params.customModels?.[providerName] || 'gpt-4o-mini',
+      models: normalizeModelList(cfg.models || [cfg.model, session.params.customModels?.[providerName]])
+    };
+    if (providerName !== name) {
+      delete session.params.customProviders[name];
+    }
+  }
+
   return session;
 }
 
@@ -272,7 +320,8 @@ function getSerializableSettings(session) {
     tts: session.params.tts,
     stt: session.params.stt,
     customProviders: session.params.customProviders,
-    customModels: session.params.customModels
+    customModels: session.params.customModels,
+    providerProfiles: serializeProvidersForClient(session)
   };
 }
 
@@ -300,6 +349,37 @@ function applySettingsPatch(session, updates = {}) {
   if (typeof updates.model === 'string' && updates.model.trim()) {
     session.params.model = updates.model.trim();
     session.params.customModels[normalizeProviderName(session.params.provider)] = session.params.model;
+  }
+
+  if (updates.customProviders && typeof updates.customProviders === 'object') {
+    for (const [rawName, rawConfig] of Object.entries(updates.customProviders)) {
+      const name = normalizeProviderName(rawName);
+      if (!name || !rawConfig || typeof rawConfig !== 'object') continue;
+      const endpoint = rawConfig.endpoint || toProviderEndpoint(rawConfig.baseUrl);
+      session.params.customProviders[name] = {
+        endpoint,
+        baseUrl: rawConfig.baseUrl || String(endpoint).replace(/\/chat\/completions\/?$/, ''),
+        apiKey: String(rawConfig.apiKey || '').trim(),
+        model: String(rawConfig.model || session.params.customModels?.[name] || 'gpt-4o-mini').trim(),
+        models: normalizeModelList(rawConfig.models || [rawConfig.model])
+      };
+      session.params.customModels[name] = session.params.customProviders[name].model;
+    }
+  }
+
+  if (Array.isArray(updates.removeProviders)) {
+    for (const item of updates.removeProviders) {
+      const name = normalizeProviderName(item);
+      delete session.params.customProviders[name];
+      delete session.params.customModels[name];
+      if (session.params.provider === name) {
+        session.params.provider = 'openrouter';
+        session.params.model = resolvedProviders.openrouter?.model || LLM_PROVIDERS.openrouter.model;
+      }
+      if (session.params.fallbackProvider === name) {
+        session.params.fallbackProvider = process.env.DEFAULT_FALLBACK_PROVIDER || 'mistral';
+      }
+    }
   }
 
   if (updates.temperature !== undefined) {
@@ -857,6 +937,8 @@ async function handleCommand(session, input) {
 /modelset <provider> <model-name> - Save model per provider
 /providers - List configured providers and defaults
 /provideradd <name> <baseUrl> <apiKey> [defaultModel] - Add OpenAI-compatible provider
+/providerremove <name> - Remove custom provider
+/models [provider] - List saved models for provider
 /temperature <0.0-2.0> - Set temperature
 /systemprompt <prompt> - Set system prompt
 /memory <number> - Set conversation memory size
@@ -937,6 +1019,32 @@ Fallback Provider: ${session.params.fallbackProvider}`;
       return `Configured providers:\n${lines.join('\n')}`;
     }
 
+
+    case '/models': {
+      const targetProvider = normalizeProviderName(args || session.params.provider);
+      const providers = getResolvedProviders(session);
+      if (!providers[targetProvider]) {
+        return `Unknown provider "${targetProvider}".`;
+      }
+      const modelList = normalizeModelList(providers[targetProvider].models || [session.params.customModels?.[targetProvider] || providers[targetProvider].model]);
+      return `Models for ${targetProvider}: ${modelList.length ? modelList.join(', ') : 'none configured'}`;
+    }
+
+    case '/providerremove': {
+      const target = normalizeProviderName(args);
+      if (!target) return 'Usage: /providerremove <name>';
+      if (LLM_PROVIDERS[target]) return 'Built-in providers cannot be removed.';
+      if (!session.params.customProviders[target]) return `Provider "${target}" not found.`;
+      delete session.params.customProviders[target];
+      delete session.params.customModels[target];
+      if (session.params.provider === target) {
+        session.params.provider = 'openrouter';
+        session.params.model = LLM_PROVIDERS.openrouter.model;
+      }
+      await saveSession(session);
+      return `Custom provider "${target}" removed.`;
+    }
+
     case '/provideradd': {
       const providerParts = args.split(' ');
       const providerName = normalizeProviderName(providerParts.shift());
@@ -949,8 +1057,10 @@ Fallback Provider: ${session.params.fallbackProvider}`;
       const endpoint = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
       session.params.customProviders[providerName] = {
         endpoint,
+        baseUrl: baseUrl.replace(/\/$/, ''),
         apiKey,
-        model: defaultModel || session.params.customModels?.[providerName] || 'gpt-4o-mini'
+        model: defaultModel || session.params.customModels?.[providerName] || 'gpt-4o-mini',
+        models: normalizeModelList(defaultModel ? [defaultModel] : [session.params.customModels?.[providerName] || 'gpt-4o-mini'])
       };
       if (defaultModel) {
         session.params.customModels[providerName] = defaultModel;
@@ -1083,7 +1193,8 @@ app.get('/api/settings/:sessionId', async (req, res) => {
       success: true,
       sessionId: session.id,
       settings: getSerializableSettings(session),
-      providers: Object.keys(getResolvedProviders(session))
+      providers: Object.keys(getResolvedProviders(session)),
+      providerProfiles: serializeProvidersForClient(session)
     });
   } catch (err) {
     logger.error('Failed to fetch settings', { sessionId: req.params.sessionId, error: err.message });
@@ -1118,6 +1229,55 @@ app.post('/api/settings/:sessionId/save', async (req, res) => {
   } catch (err) {
     logger.error('Failed to save defaults via API', { sessionId: req.params.sessionId, error: err.message });
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+app.get('/api/providers/:sessionId', async (req, res) => {
+  try {
+    const session = await loadSession(req.params.sessionId);
+    res.json({ success: true, providers: serializeProvidersForClient(session), activeProvider: session.params.provider });
+  } catch (err) {
+    logger.error('Failed to fetch providers', { sessionId: req.params.sessionId, error: err.message });
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/providers/:sessionId', async (req, res) => {
+  try {
+    const session = await loadSession(req.params.sessionId);
+    const { name, baseUrl, apiKey, defaultModel, models } = req.body || {};
+    const providerName = normalizeProviderName(name);
+    if (!providerName || !baseUrl || !apiKey) {
+      return res.status(400).json({ success: false, error: 'name, baseUrl and apiKey are required' });
+    }
+    applySettingsPatch(session, {
+      customProviders: {
+        [providerName]: {
+          baseUrl,
+          apiKey,
+          model: defaultModel,
+          models: normalizeModelList(models || [defaultModel])
+        }
+      }
+    });
+    await saveSession(session);
+    res.json({ success: true, providers: serializeProvidersForClient(session), settings: getSerializableSettings(session) });
+  } catch (err) {
+    logger.warn('Failed to upsert provider', { sessionId: req.params.sessionId, error: err.message });
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/providers/:sessionId/:providerName', async (req, res) => {
+  try {
+    const session = await loadSession(req.params.sessionId);
+    applySettingsPatch(session, { removeProviders: [req.params.providerName] });
+    await saveSession(session);
+    res.json({ success: true, providers: serializeProvidersForClient(session), settings: getSerializableSettings(session) });
+  } catch (err) {
+    logger.warn('Failed to delete provider', { sessionId: req.params.sessionId, error: err.message });
+    res.status(400).json({ success: false, error: err.message });
   }
 });
 
