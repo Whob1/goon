@@ -257,6 +257,127 @@ function normalizeSessionParams(session) {
   return session;
 }
 
+function getSerializableSettings(session) {
+  normalizeSessionParams(session);
+  return {
+    provider: session.params.provider,
+    model: session.params.model,
+    fallbackProvider: session.params.fallbackProvider,
+    temperature: session.params.temperature,
+    systemPrompt: session.params.systemPrompt,
+    memorySize: session.params.memorySize,
+    maxTokens: session.params.maxTokens,
+    ttsEnabled: session.params.ttsEnabled,
+    voiceId: session.params.voiceId || '',
+    tts: session.params.tts,
+    stt: session.params.stt,
+    customProviders: session.params.customProviders,
+    customModels: session.params.customModels
+  };
+}
+
+function applySettingsPatch(session, updates = {}) {
+  normalizeSessionParams(session);
+  const resolvedProviders = getResolvedProviders(session);
+
+  if (typeof updates.provider === 'string') {
+    const nextProvider = normalizeProviderName(updates.provider);
+    if (!resolvedProviders[nextProvider]) {
+      throw new Error(`Unknown provider "${nextProvider}"`);
+    }
+    session.params.provider = nextProvider;
+    session.params.model = session.params.customModels?.[nextProvider] || resolvedProviders[nextProvider].model || session.params.model;
+  }
+
+  if (typeof updates.fallbackProvider === 'string') {
+    const nextFallback = normalizeProviderName(updates.fallbackProvider);
+    if (!resolvedProviders[nextFallback]) {
+      throw new Error(`Unknown fallback provider "${nextFallback}"`);
+    }
+    session.params.fallbackProvider = nextFallback;
+  }
+
+  if (typeof updates.model === 'string' && updates.model.trim()) {
+    session.params.model = updates.model.trim();
+    session.params.customModels[normalizeProviderName(session.params.provider)] = session.params.model;
+  }
+
+  if (updates.temperature !== undefined) {
+    const value = Number(updates.temperature);
+    const check = validateInput(value, 'number', { min: 0, max: 2 });
+    if (!check.valid) throw new Error(check.error);
+    session.params.temperature = value;
+  }
+
+  if (updates.systemPrompt !== undefined) {
+    const prompt = String(updates.systemPrompt || '').trim();
+    const check = validateInput(prompt, 'string', { min: 1, max: 4000 });
+    if (!check.valid) throw new Error(check.error);
+    session.params.systemPrompt = prompt;
+  }
+
+  if (updates.memorySize !== undefined) {
+    const value = Number(updates.memorySize);
+    const check = validateInput(value, 'number', { min: 1, max: 100 });
+    if (!check.valid) throw new Error(check.error);
+    session.params.memorySize = Math.round(value);
+  }
+
+  if (updates.maxTokens !== undefined) {
+    const value = Number(updates.maxTokens);
+    const check = validateInput(value, 'number', { min: 100, max: 4000 });
+    if (!check.valid) throw new Error(check.error);
+    session.params.maxTokens = Math.round(value);
+  }
+
+  if (updates.ttsEnabled !== undefined) {
+    session.params.ttsEnabled = Boolean(updates.ttsEnabled);
+  }
+
+  if (updates.voiceId !== undefined) {
+    session.params.voiceId = String(updates.voiceId || '').trim();
+    session.params.tts.voice = session.params.voiceId || session.params.tts.voice;
+  }
+
+  if (updates.tts && typeof updates.tts === 'object') {
+    if (updates.tts.provider !== undefined) {
+      const provider = normalizeProviderName(updates.tts.provider);
+      if (!['openai', 'elevenlabs'].includes(provider)) {
+        throw new Error('TTS provider must be openai or elevenlabs');
+      }
+      session.params.tts.provider = provider;
+    }
+    if (updates.tts.model !== undefined) {
+      session.params.tts.model = String(updates.tts.model || '').trim();
+    }
+    if (updates.tts.voice !== undefined) {
+      session.params.tts.voice = String(updates.tts.voice || '').trim();
+      session.params.voiceId = session.params.tts.voice;
+    }
+    if (updates.tts.speed !== undefined) {
+      const speed = Number(updates.tts.speed);
+      const check = validateInput(speed, 'number', { min: 0.25, max: 4 });
+      if (!check.valid) throw new Error(check.error);
+      session.params.tts.speed = speed;
+    }
+  }
+
+  if (updates.stt && typeof updates.stt === 'object') {
+    if (updates.stt.model !== undefined) {
+      session.params.stt.model = String(updates.stt.model || '').trim();
+    }
+    if (updates.stt.language !== undefined) {
+      session.params.stt.language = String(updates.stt.language || '').trim();
+    }
+    if (updates.stt.punctuate !== undefined) {
+      session.params.stt.punctuate = Boolean(updates.stt.punctuate);
+    }
+  }
+
+  normalizeSessionParams(session);
+  return session;
+}
+
 // ============================================================================
 // REDIS CLIENT
 // ============================================================================
@@ -955,6 +1076,51 @@ const server = http.createServer(app);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static('public'));
 
+app.get('/api/settings/:sessionId', async (req, res) => {
+  try {
+    const session = await loadSession(req.params.sessionId);
+    res.json({
+      success: true,
+      sessionId: session.id,
+      settings: getSerializableSettings(session),
+      providers: Object.keys(getResolvedProviders(session))
+    });
+  } catch (err) {
+    logger.error('Failed to fetch settings', { sessionId: req.params.sessionId, error: err.message });
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/settings/:sessionId', async (req, res) => {
+  try {
+    const session = await loadSession(req.params.sessionId);
+    applySettingsPatch(session, req.body || {});
+    await saveSession(session);
+    res.json({
+      success: true,
+      message: 'Session settings updated',
+      settings: getSerializableSettings(session)
+    });
+  } catch (err) {
+    logger.warn('Failed to update settings', { sessionId: req.params.sessionId, error: err.message });
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/settings/:sessionId/save', async (req, res) => {
+  try {
+    const session = await loadSession(req.params.sessionId);
+    const result = await saveUserDefaults(session.id, session.params);
+    if (!result.success) {
+      return res.status(500).json({ success: false, error: result.error });
+    }
+    res.json({ success: true, message: 'Defaults saved successfully' });
+  } catch (err) {
+    logger.error('Failed to save defaults via API', { sessionId: req.params.sessionId, error: err.message });
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Metrics
 const metrics = {
   requests: 0,
@@ -1398,199 +1564,12 @@ try {
   logger.warn('Could not create public directory', { error: err.message });
 }
 
-const htmlContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Goon VoiceFlow</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-    #app {
-      width: 90%;
-      max-width: 800px;
-      height: 90vh;
-      background: white;
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    #header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 20px;
-      text-align: center;
-      font-size: 24px;
-      font-weight: bold;
-    }
-    #messages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 20px;
-      background: #f5f5f5;
-    }
-    .message {
-      margin-bottom: 15px;
-      padding: 12px 16px;
-      border-radius: 12px;
-      max-width: 80%;
-      word-wrap: break-word;
-      white-space: pre-wrap;
-    }
-    .user {
-      background: #667eea;
-      color: white;
-      margin-left: auto;
-      text-align: right;
-    }
-    .assistant {
-      background: white;
-      color: #333;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    .system {
-      background: #ffeaa7;
-      color: #333;
-      text-align: center;
-      margin: 0 auto;
-      font-style: italic;
-    }
-    #input-area {
-      padding: 20px;
-      background: white;
-      border-top: 1px solid #e0e0e0;
-      display: flex;
-      gap: 10px;
-    }
-    #input {
-      flex: 1;
-      padding: 12px;
-      border: 2px solid #e0e0e0;
-      border-radius: 25px;
-      font-size: 16px;
-      outline: none;
-      transition: border-color 0.3s;
-    }
-    #input:focus {
-      border-color: #667eea;
-    }
-    button {
-      padding: 12px 24px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border: none;
-      border-radius: 25px;
-      font-size: 16px;
-      cursor: pointer;
-      transition: transform 0.2s;
-    }
-    button:hover {
-      transform: scale(1.05);
-    }
-    button:active {
-      transform: scale(0.95);
-    }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-  </style>
-</head>
-<body>
-  <div id="app">
-    <div id="header">Goon VoiceFlow</div>
-    <div id="messages"></div>
-    <div id="input-area">
-      <input type="text" id="input" placeholder="Type your message..." />
-      <button id="send">Send</button>
-    </div>
-  </div>
-
-  <script>
-    let ws;
-    let sessionId = localStorage.getItem('sessionId');
-    const messagesDiv = document.getElementById('messages');
-    const input = document.getElementById('input');
-    const sendBtn = document.getElementById('send');
-
-    function addMessage(content, type) {
-      const div = document.createElement('div');
-      div.className = 'message ' + type;
-      div.textContent = content;
-      messagesDiv.appendChild(div);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
-
-    function connect() {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      ws = new WebSocket(protocol + '//' + window.location.host);
-
-      ws.onopen = () => {
-        console.log('Connected');
-        ws.send(JSON.stringify({ type: 'init', sessionId }));
-      };
-
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-
-        if (data.type === 'sessionId') {
-          sessionId = data.sessionId;
-          localStorage.setItem('sessionId', sessionId);
-          console.log('Session ID:', sessionId);
-        } else if (data.type === 'text') {
-          addMessage(data.content, 'assistant');
-        } else if (data.type === 'error') {
-          addMessage(data.content, 'system');
-        } else if (data.type === 'audio') {
-          // Handle audio playback
-          const audio = new Audio('data:audio/mpeg;base64,' + data.buffer);
-          audio.play().catch(err => console.error('Audio playback failed:', err));
-        }
-      };
-
-      ws.onclose = () => {
-        console.log('Disconnected');
-        addMessage('Connection lost. Reconnecting...', 'system');
-        setTimeout(connect, 3000);
-      };
-
-      ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-      };
-    }
-
-    function sendMessage() {
-      const text = input.value.trim();
-      if (!text) return;
-
-      addMessage(text, 'user');
-      ws.send(JSON.stringify({ type: 'text', content: text }));
-      input.value = '';
-    }
-
-    sendBtn.addEventListener('click', sendMessage);
-    input.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') sendMessage();
-    });
-
-    connect();
-  </script>
-</body>
-</html>`;
-
 try {
-  fs.writeFileSync(path.join(publicDir, 'index.html'), htmlContent);
-  logger.info('WebUI HTML generated');
+  const indexPath = path.join(publicDir, 'index.html');
+  if (!fs.existsSync(indexPath)) {
+    fs.writeFileSync(indexPath, '<!DOCTYPE html><html><body><h1>Goon VoiceFlow</h1></body></html>');
+    logger.info('Fallback WebUI HTML generated');
+  }
 } catch (err) {
   logger.warn('Could not write WebUI HTML', { error: err.message });
 }
